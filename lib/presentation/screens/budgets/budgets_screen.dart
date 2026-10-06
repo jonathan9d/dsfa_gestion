@@ -1,0 +1,303 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../data/database/database.dart';
+import '../../providers/app_providers.dart';
+import '../../providers/providers.dart';
+import '../../widgets/common.dart';
+import '../../widgets/tableau.dart';
+import 'apercu_budget_dialog.dart';
+import 'ligne_budget_dialog.dart';
+
+/// Gestion des lignes budgétaires allouées (REFERENTIEL_BUDGET).
+///
+/// Le montant alloué est **toujours calculé automatiquement** (aucun champ de
+/// saisie, aucun bouton « Appliquer ») : quantité × jours × taux, ou formule
+/// du type de budget sélectionné.
+class BudgetsScreen extends ConsumerStatefulWidget {
+  const BudgetsScreen({super.key});
+
+  @override
+  ConsumerState<BudgetsScreen> createState() => _BudgetsScreenState();
+}
+
+class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
+  final _recherche = TextEditingController();
+
+  @override
+  void dispose() {
+    _recherche.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lignes = ref.watch(lignesBudgetProvider);
+
+    return Scaffold(
+      body: Column(
+        children: [
+          EnTetePage(
+            titre: 'Budgets',
+            sousTitre:
+                'Lignes budgétaires allouées — montant calculé automatiquement '
+                'selon les règles',
+            actions: [
+              // Une seule action principale par écran : « Voir » reste une
+              // action secondaire, « Nouvelle ligne » porte l'accent.
+              OutlinedButton.icon(
+                onPressed: lignes.value == null
+                    ? null
+                    : () => _ouvrirApercu(lignes.value!),
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('Voir'),
+              ),
+              FilledButton.icon(
+                onPressed: () => _ouvrirFormulaire(),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Nouvelle ligne'),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: SizedBox(
+              width: 380,
+              child: ChampRecherche(
+                controller: _recherche,
+                hint: 'Rechercher une ligne budgétaire',
+                onChanged: (v) =>
+                    ref.read(filtreRechercheProvider.notifier).state = v,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: lignes.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => EtatErreur(erreur: e),
+              data: (liste) {
+                if (liste.isEmpty) {
+                  return EtatVide(
+                    message:
+                        'Aucune ligne budgétaire enregistrée pour le moment.\n'
+                        'Créez une ligne pour suivre les montants alloués.',
+                    icone: Icons.savings_outlined,
+                    action: FilledButton.icon(
+                      onPressed: () => _ouvrirFormulaire(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Ajouter une ligne'),
+                    ),
+                  );
+                }
+                return _TableauBudgets(lignes: liste, ref: ref);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _ouvrirFormulaire({LigneBudget? ligne}) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => LigneBudgetDialog(ligne: ligne),
+    );
+    if (ok == true && mounted) {
+      notifier(context, 'Ligne budgétaire enregistrée');
+    }
+  }
+
+  /// Pré-impression du budget : récapitulatif automatique + exports.
+  Future<void> _ouvrirApercu(List<LigneBudget> lignes) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ApercuBudgetDialog(lignes: lignes),
+    );
+  }
+}
+
+class _TableauBudgets extends StatelessWidget {
+  const _TableauBudgets({required this.lignes, required this.ref});
+
+  final List<LigneBudget> lignes;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalAlloue = lignes.fold<double>(0, (s, l) => s + l.montantAlloue);
+
+    // Récapitulatif automatique par ligne budgétaire (les totaux les plus
+    // importants d'abord).
+    final parLigne = <String, double>{};
+    for (final l in lignes) {
+      parLigne[l.ligneBudgetaire] =
+          (parLigne[l.ligneBudgetaire] ?? 0) + l.montantAlloue;
+    }
+    final entrees = parLigne.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: TableauGestion<LigneBudget>(
+        lignes: lignes,
+        cleLigne: (l) => l.id,
+        messageVide:
+            'Aucune ligne budgétaire enregistrée pour le moment.\n'
+            'Utilisez le bouton « Nouvelle ligne » pour en créer une.',
+        resume: Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            _ResumeChip(
+              label: 'Total alloué : ${formatMontant(totalAlloue)}',
+              icone: Icons.account_balance_wallet_outlined,
+            ),
+            for (final e in entrees.take(6))
+              _ResumeChip(
+                label: '${e.key} : ${formatMontant(e.value)}',
+                icone: Icons.donut_small_outlined,
+              ),
+          ],
+        ),
+        colonnes: [
+          ColonneTableau(
+            label: 'Activité',
+            flex: 2,
+            valeur: (l) => l.activiteCode,
+            cellule: (_, l) => Text(
+              l.activiteCode,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          ColonneTableau(
+            label: 'Ligne budgétaire',
+            flex: 4,
+            valeur: (l) => l.ligneBudgetaire,
+          ),
+          ColonneTableau(
+            label: 'Type',
+            flex: 3,
+            valeur: (l) => l.typeBudget,
+          ),
+          ColonneTableau(label: 'Unité', flex: 2, valeur: (l) => l.unite),
+          ColonneTableau(
+            label: 'Quantité / Base',
+            flex: 2,
+            numerique: true,
+            valeur: (l) => l.quantitePrevue.toStringAsFixed(0),
+            cleTri: (l) => l.quantitePrevue,
+          ),
+          ColonneTableau(
+            label: 'Jours / Multiplicateur',
+            flex: 2,
+            numerique: true,
+            valeur: (l) => l.nombreJours.toStringAsFixed(0),
+            cleTri: (l) => l.nombreJours,
+          ),
+          ColonneTableau(
+            label: 'Taux / PU',
+            flex: 3,
+            numerique: true,
+            valeur: (l) => formatMontant(l.tauxUnitaire),
+            cleTri: (l) => l.tauxUnitaire,
+          ),
+          ColonneTableau(
+            label: 'Montant alloué',
+            flex: 3,
+            numerique: true,
+            valeur: (l) => formatMontant(l.montantAlloue),
+            cleTri: (l) => l.montantAlloue,
+            cellule: (_, l) => Text(
+              formatMontant(l.montantAlloue),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          ColonneTableau(
+            label: 'Observation',
+            flex: 3,
+            valeur: (l) => l.observation ?? '',
+          ),
+        ],
+        actions: [
+          ActionTableau<LigneBudget>(
+            icone: Icons.visibility_outlined,
+            infobulle: 'Voir (pré-impression)',
+            onTap: (l) => showDialog<void>(
+              context: context,
+              builder: (_) => ApercuBudgetDialog(lignes: [l]),
+            ),
+          ),
+          ActionTableau<LigneBudget>(
+            icone: Icons.edit_outlined,
+            infobulle: 'Modifier',
+            onTap: (l) async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (_) => LigneBudgetDialog(ligne: l),
+              );
+              if (ok == true && context.mounted) {
+                notifier(context, 'Ligne budgétaire modifiée');
+              }
+            },
+          ),
+          ActionTableau<LigneBudget>(
+            icone: Icons.delete_outline,
+            infobulle: 'Supprimer',
+            couleur: Theme.of(context).colorScheme.error,
+            onTap: (l) async {
+              final ok = await confirmer(
+                context,
+                titre: 'Supprimer la ligne',
+                message:
+                    'Supprimer « ${l.ligneBudgetaire} » de ${l.activiteCode} ?',
+              );
+              if (!ok) return;
+              await ref.read(lignesBudgetRepositoryProvider).delete(l.id);
+              await ref
+                  .read(auditRepositoryProvider)
+                  .log(
+                    action: 'SUPPRESSION',
+                    entite: 'ligne_budget',
+                    entiteId: l.id.toString(),
+                    ancienneValeur: l.ligneBudgetaire,
+                  );
+            },
+          ),
+        ],
+        onSupprimer: (lignes) async {
+          final repo = ref.read(lignesBudgetRepositoryProvider);
+          final audit = ref.read(auditRepositoryProvider);
+          for (final l in lignes) {
+            await repo.delete(l.id);
+            await audit.log(
+              action: 'SUPPRESSION',
+              entite: 'ligne_budget',
+              entiteId: l.id.toString(),
+              ancienneValeur: l.ligneBudgetaire,
+            );
+          }
+        },
+      ),
+    );
+  }
+}
+
+class _ResumeChip extends StatelessWidget {
+  const _ResumeChip({required this.label, required this.icone});
+  final String label;
+  final IconData icone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(icone, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 12.5)),
+    );
+  }
+}
