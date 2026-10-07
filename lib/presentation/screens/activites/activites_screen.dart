@@ -9,7 +9,6 @@ import '../../widgets/common.dart';
 import '../../widgets/tableau.dart';
 import 'activite_form_dialog.dart';
 
-/// Liste des activités avec recherche, filtres et CRUD.
 class ActivitesScreen extends ConsumerStatefulWidget {
   const ActivitesScreen({super.key});
 
@@ -52,13 +51,10 @@ class _ActivitesScreenState extends ConsumerState<ActivitesScreen> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            child: Row(
               children: [
                 SizedBox(
-                  width: 320,
+                  width: 360,
                   child: ChampRecherche(
                     controller: _recherche,
                     hint: 'Rechercher par code ou description',
@@ -73,30 +69,7 @@ class _ActivitesScreenState extends ConsumerState<ActivitesScreen> {
                     ),
                   ),
                 ),
-                _FiltreStatut(
-                  valeur: filtre.statut,
-                  onChanged: (v) => ref
-                      .read(filtreActivitesProvider.notifier)
-                      .state = FiltreActivite(
-                    recherche: filtre.recherche,
-                    annee: filtre.annee,
-                    statut: v,
-                    type: filtre.type,
-                    district: filtre.district,
-                  ),
-                ),
-                _FiltreType(
-                  valeur: filtre.type,
-                  onChanged: (v) => ref
-                      .read(filtreActivitesProvider.notifier)
-                      .state = FiltreActivite(
-                    recherche: filtre.recherche,
-                    annee: filtre.annee,
-                    statut: filtre.statut,
-                    type: v,
-                    district: filtre.district,
-                  ),
-                ),
+                const Spacer(),
                 if (!filtre.estVide)
                   TextButton.icon(
                     onPressed: () {
@@ -123,63 +96,10 @@ class _ActivitesScreenState extends ConsumerState<ActivitesScreen> {
                   );
                 }
                 return _TableauActivites(activites: liste);
-
               },
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FiltreStatut extends StatelessWidget {
-  const _FiltreStatut({required this.valeur, required this.onChanged});
-  final String? valeur;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 180,
-      child: DropdownButtonFormField<String?>(
-        initialValue: valeur,
-        decoration: const InputDecoration(labelText: 'Statut'),
-        items: const [
-          DropdownMenuItem(value: null, child: Text('Tous')),
-          DropdownMenuItem(value: 'Planifiée', child: Text('Planifiée')),
-          DropdownMenuItem(value: 'En cours', child: Text('En cours')),
-          DropdownMenuItem(value: 'Terminée', child: Text('Terminée')),
-          DropdownMenuItem(value: 'Annulée', child: Text('Annulée')),
-        ],
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-
-class _FiltreType extends StatelessWidget {
-  const _FiltreType({required this.valeur, required this.onChanged});
-  final String? valeur;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 200,
-      child: DropdownButtonFormField<String?>(
-        initialValue: valeur,
-        decoration: const InputDecoration(labelText: 'Type'),
-        items: const [
-          DropdownMenuItem(value: null, child: Text('Tous')),
-          DropdownMenuItem(value: 'Atelier/Réunion', child: Text('Atelier/Réunion')),
-          DropdownMenuItem(value: 'Supervision', child: Text('Supervision')),
-          DropdownMenuItem(value: 'Formation', child: Text('Formation')),
-          DropdownMenuItem(value: 'Acquisition', child: Text('Acquisition')),
-          DropdownMenuItem(
-              value: 'Mission extérieur', child: Text('Mission extérieur')),
-        ],
-        onChanged: onChanged,
       ),
     );
   }
@@ -191,14 +111,18 @@ class _TableauActivites extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final budgets = ref.watch(toutesLignesBudgetProvider).value ?? const <LigneBudget>[];
+    final montants = <String, double>{};
+    for (final l in budgets) {
+      montants[l.activiteCode] = (montants[l.activiteCode] ?? 0) + l.montantAlloue;
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: TableauGestion<Activite>(
         lignes: activites,
         cleLigne: (a) => a.id,
-        messageVide:
-            'Aucune activité enregistrée pour le moment.\n'
-            'Utilisez le bouton « Nouvelle activité » pour commencer.',
+        messageVide: 'Aucune activité enregistrée.',
         colonnes: [
           ColonneTableau(
             label: 'Code',
@@ -211,57 +135,19 @@ class _TableauActivites extends ConsumerWidget {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
+          ColonneTableau(label: 'Description', flex: 5, valeur: (a) => a.description),
+          ColonneTableau(label: 'Code budget', flex: 2, valeur: (a) => a.codeBudget ?? ''),
+          ColonneTableau(label: 'Source de financement', flex: 3, valeur: (a) => a.sourceFinancement ?? ''),
+          ColonneTableau(label: 'Lieu d’activité', flex: 3, valeur: (a) => a.district ?? ''),
+          ColonneTableau(label: 'Jours', flex: 1, numerique: true, valeur: (a) => '${a.nombreJours}', cleTri: (a) => a.nombreJours),
+          ColonneTableau(label: 'Début', flex: 2, valeur: (a) => formatDate(a.dateDebut), cleTri: (a) => a.dateDebut),
+          ColonneTableau(label: 'Fin', flex: 2, valeur: (a) => formatDate(a.dateFin), cleTri: (a) => a.dateFin),
           ColonneTableau(
-            label: 'Description',
-            flex: 5,
-            valeur: (a) => a.description,
-          ),
-          ColonneTableau(label: 'Type', flex: 3, valeur: (a) => a.type),
-          ColonneTableau(
-            label: 'Code budget',
-            flex: 2,
-            valeur: (a) => a.codeBudget ?? '',
-            cellule: (_, a) => Text(
-              a.codeBudget ?? '—',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          ColonneTableau(
-            label: 'Source de financement',
+            label: 'Montant alloué',
             flex: 3,
-            valeur: (a) => a.sourceFinancement ?? '',
-          ),
-          ColonneTableau(
-            label: 'District',
-            flex: 3,
-            valeur: (a) => a.district ?? '',
-          ),
-          ColonneTableau(
-            label: 'Jours',
-            flex: 1,
             numerique: true,
-            valeur: (a) => '${a.nombreJours}',
-            cleTri: (a) => a.nombreJours,
-          ),
-          ColonneTableau(
-            label: 'Début',
-            flex: 2,
-            valeur: (a) => formatDate(a.dateDebut),
-            cleTri: (a) => a.dateDebut,
-          ),
-          ColonneTableau(
-            label: 'Fin',
-            flex: 2,
-            valeur: (a) => formatDate(a.dateFin),
-            cleTri: (a) => a.dateFin,
-          ),
-          ColonneTableau(
-            label: 'Statut',
-            flex: 3,
-            valeur: (a) => a.statut,
-            cellule: (_, a) => _BadgeStatut(statut: a.statut),
+            valeur: (a) => formatMontant(montants[a.code] ?? 0),
+            cleTri: (a) => montants[a.code] ?? 0,
           ),
         ],
         actions: [
@@ -269,13 +155,8 @@ class _TableauActivites extends ConsumerWidget {
             icone: Icons.edit_outlined,
             infobulle: 'Modifier',
             onTap: (a) async {
-              final ok = await ActiviteFormDialog.afficher(
-                context,
-                activite: a,
-              );
-              if (ok == true && context.mounted) {
-                notifier(context, 'Activité modifiée');
-              }
+              final ok = await ActiviteFormDialog.afficher(context, activite: a);
+              if (ok == true && context.mounted) notifier(context, 'Activité modifiée');
             },
           ),
           ActionTableau<Activite>(
@@ -285,12 +166,8 @@ class _TableauActivites extends ConsumerWidget {
             onTap: (a) async {
               final ok = await confirmer(
                 context,
-                titre: 'Supprimer l\'activité',
-                message:
-                    'Supprimer « ${a.code} » ?\n'
-                    'Les lignes budgétaires, les affectations, les présences, '
-                    'les indemnités et les contrôles PJ de cette activité seront '
-                    'également supprimés. Cette action est irréversible.',
+                titre: 'Supprimer l’activité',
+                message: 'Supprimer « ${a.code} » et toutes ses données liées ?',
                 confirmerLabel: 'Supprimer',
               );
               if (!ok) return;
@@ -301,9 +178,7 @@ class _TableauActivites extends ConsumerWidget {
                     entiteId: a.id.toString(),
                     ancienneValeur: a.code,
                   );
-              if (context.mounted) {
-                notifier(context, 'Activité supprimée');
-              }
+              if (context.mounted) notifier(context, 'Activité supprimée');
             },
           ),
         ],
@@ -320,38 +195,6 @@ class _TableauActivites extends ConsumerWidget {
             );
           }
         },
-      ),
-    );
-  }
-}
-
-class _BadgeStatut extends StatelessWidget {
-  const _BadgeStatut({required this.statut});
-  final String statut;
-
-  @override
-  Widget build(BuildContext context) {
-    final (couleur, icone) = switch (statut) {
-      'Terminée' => (const Color(0xFF2E7D32), Icons.check_circle_outline),
-      'En cours' => (const Color(0xFF1565C0), Icons.play_circle_outline),
-      'Annulée' => (const Color(0xFFC62828), Icons.cancel_outlined),
-      _ => (const Color(0xFFF9A825), Icons.schedule_outlined),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: couleur.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icone, size: 13, color: couleur),
-          const SizedBox(width: 4),
-          Text(statut,
-              style: TextStyle(
-                  fontSize: 11.5, color: couleur, fontWeight: FontWeight.w600)),
-        ],
       ),
     );
   }

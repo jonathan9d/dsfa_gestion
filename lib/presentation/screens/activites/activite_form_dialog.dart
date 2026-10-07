@@ -21,8 +21,7 @@ class ActiviteFormDialog extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<ActiviteFormDialog> createState() =>
-      _ActiviteFormDialogState();
+  ConsumerState<ActiviteFormDialog> createState() => _ActiviteFormDialogState();
 }
 
 class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
@@ -69,8 +68,9 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
   static String prochainCodeBudget(Iterable<String?> existants) {
     var max = 0;
     for (final brut in existants) {
-      final m = RegExp(r'^bud_(\d+)$')
-          .firstMatch((brut ?? '').trim().toLowerCase());
+      final m = RegExp(
+        r'^bud_(\d+)$',
+      ).firstMatch((brut ?? '').trim().toLowerCase());
       if (m == null) continue;
       final n = int.tryParse(m.group(1)!) ?? 0;
       if (n > max) max = n;
@@ -99,12 +99,15 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
     _annee = TextEditingController(text: a?.annee?.toString() ?? '');
     _district = TextEditingController(text: a?.district ?? '');
     _responsable = TextEditingController(text: a?.responsable ?? '');
-    _participants =
-        TextEditingController(text: (a?.nombreParticipants ?? 0).toString());
-    _missionnaires =
-        TextEditingController(text: (a?.nombreMissionnaires ?? 0).toString());
-    _distance =
-        TextEditingController(text: (a?.distanceAllerKm ?? 0).toString());
+    _participants = TextEditingController(
+      text: (a?.nombreParticipants ?? 0).toString(),
+    );
+    _missionnaires = TextEditingController(
+      text: (a?.nombreMissionnaires ?? 0).toString(),
+    );
+    _distance = TextEditingController(
+      text: (a?.distanceAllerKm ?? 0).toString(),
+    );
     _observation = TextEditingController(text: a?.observation ?? '');
     _type = a?.type ?? _types.first;
     _statut = a?.statut ?? 'En cours';
@@ -116,8 +119,8 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _codeBudget.text.trim().isNotEmpty) return;
         _codeBudget.text = prochainCodeBudget([
-          for (final act in
-              ref.read(activitesProvider).value ?? const <Activite>[])
+          for (final act
+              in ref.read(activitesProvider).value ?? const <Activite>[])
             act.codeBudget,
         ]);
       });
@@ -144,10 +147,11 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
     super.dispose();
   }
 
-  /// Pré-remplissage automatique depuis le district choisi : distance aller
+  /// Pré-remplissage automatique depuis le lieu d’activité choisi : distance aller
   /// et zone d'indemnité viennent du référentiel DISTANCES_DISTRICTS.
-  void _appliquerDistrict(String nom) {
-    final districts = ref.read(tousDistrictsProvider).value ?? const <District>[];
+  void _appliquerLieuActivite(String nom) {
+    final districts =
+        ref.read(tousDistrictsProvider).value ?? const <District>[];
     District? trouve;
     for (final d in districts) {
       if (d.nom.toLowerCase() == nom.trim().toLowerCase()) {
@@ -158,11 +162,11 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
     if (trouve == null) return;
     setState(() {
       if (trouve!.distanceAllerKm > 0) {
-        _distance.text = trouve.distanceAllerKm
-            .toStringAsFixed(trouve.distanceAllerKm.truncateToDouble() ==
-                    trouve.distanceAllerKm
-                ? 0
-                : 2);
+        _distance.text = trouve.distanceAllerKm.toStringAsFixed(
+          trouve.distanceAllerKm.truncateToDouble() == trouve.distanceAllerKm
+              ? 0
+              : 2,
+        );
       }
     });
   }
@@ -184,11 +188,51 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
     });
   }
 
+  /// **Tous** les champs sont vérifiés avant l'enregistrement : le formulaire
+  /// n'accepte jamais une activité incomplète ou incohérente.
   Future<void> _enregistrer() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_debut != null && _fin != null && _fin!.isBefore(_debut!)) {
-      notifier(context, 'La date de fin doit être postérieure à la date de début.',
-          erreur: true);
+    final manquants = <String>[];
+    if (_debut == null) manquants.add('date de début');
+    if (_fin == null) manquants.add('date de fin');
+    if (manquants.isNotEmpty) {
+      notifier(
+        context,
+        'Renseignez la ${manquants.join(' et la ')} de l’activité.',
+        erreur: true,
+      );
+      return;
+    }
+    if (_fin!.isBefore(_debut!)) {
+      notifier(
+        context,
+        'La date de fin doit être postérieure à la date de début.',
+        erreur: true,
+      );
+      return;
+    }
+    final jours = nombreJoursEntre(_debut, _fin);
+    if (jours <= 0) {
+      notifier(
+        context,
+        'La période de l’activité est incohérente.',
+        erreur: true,
+      );
+      return;
+    }
+    final doublon = (ref.read(activitesProvider).value ?? const <Activite>[])
+        .any(
+          (a) =>
+              a.id != widget.activite?.id &&
+              a.code.trim().toLowerCase() == _code.text.trim().toLowerCase(),
+        );
+    if (doublon) {
+      notifier(
+        context,
+        'Le code « ${_code.text.trim()} » est déjà utilisé par une autre '
+        'activité.',
+        erreur: true,
+      );
       return;
     }
     setState(() => _enregistrement = true);
@@ -212,10 +256,12 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
               : (widget.activite?.nombreJours ?? 0),
         ),
         nombreParticipants: drift.Value(int.tryParse(_participants.text) ?? 0),
-        nombreMissionnaires:
-            drift.Value(int.tryParse(_missionnaires.text) ?? 0),
+        nombreMissionnaires: drift.Value(
+          int.tryParse(_missionnaires.text) ?? 0,
+        ),
         distanceAllerKm: drift.Value(
-            double.tryParse(_distance.text.replaceAll(',', '.')) ?? 0),
+          double.tryParse(_distance.text.replaceAll(',', '.')) ?? 0,
+        ),
         restauration: drift.Value(_restauration),
         statut: drift.Value(_statut),
         dateDebut: drift.Value(_debut),
@@ -260,7 +306,8 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
     final largeurContenu = largeur > 720
         ? 640.0
         : (largeur - 64).clamp(240.0, 640.0);
-    final districts = ref.watch(tousDistrictsProvider).value ?? const <District>[];
+    final districts =
+        ref.watch(tousDistrictsProvider).value ?? const <District>[];
     final activitesExistantes =
         ref.watch(activitesProvider).value ?? const <Activite>[];
     final responsables = activitesExistantes
@@ -293,7 +340,8 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
       ...sourcesExistantes,
       ...ref.watch(reglesParametresProvider).value?.sourcesFinancement ??
           const <String>[],
-      ...ref.watch(valeursListeProvider('FINANCEMENT')).value ?? const <String>[],
+      ...ref.watch(valeursListeProvider('FINANCEMENT')).value ??
+          const <String>[],
     }.toList();
     return AlertDialog(
       title: TitreDialogue(
@@ -316,40 +364,19 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
                     hint: 'PSN N°1',
                     valeurs: codes,
                     prefixIcon: Icons.confirmation_number_outlined,
-                    onSaisieAuto: () => setState(
-                      () => _code.text = _genererCode(),
-                    ),
+                    onSaisieAuto: () =>
+                        setState(() => _code.text = _genererCode()),
                     saisieAutoLabel: 'Générer un nouveau code',
                     validator: (v) =>
                         validateurObligatoire(v, champ: 'Le code'),
                   ),
                   ChampListe(
                     controller: _description,
-                    label: 'Description',
+                    label: 'Description *',
                     valeurs: descriptions,
                     prefixIcon: Icons.description_outlined,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _paire(
-                  deuxColonnes,
-                  DropdownButtonFormField<String>(
-                    initialValue: _type,
-                    decoration: const InputDecoration(labelText: 'Type'),
-                    items: [
-                      for (final t in _types)
-                        DropdownMenuItem(value: t, child: Text(t)),
-                    ],
-                    onChanged: (v) => setState(() => _type = v ?? _type),
-                  ),
-                  DropdownButtonFormField<String>(
-                    initialValue: _statut,
-                    decoration: const InputDecoration(labelText: 'Statut'),
-                    items: [
-                      for (final s in _statuts)
-                        DropdownMenuItem(value: s, child: Text(s)),
-                    ],
-                    onChanged: (v) => setState(() => _statut = v ?? _statut),
+                    validator: (v) =>
+                        validateurObligatoire(v, champ: 'La description'),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -357,7 +384,7 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
                   deuxColonnes,
                   ChampListe(
                     controller: _codeBudget,
-                    label: 'Code budget',
+                    label: 'Code budget *',
                     valeurs: codeBudgets,
                     prefixIcon: Icons.savings_outlined,
                     helperText: 'Généré automatiquement (bud_1, bud_2, …)',
@@ -368,83 +395,113 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
                       ),
                     ),
                     saisieAutoLabel: 'Générer le code budget suivant',
+                    validator: (v) =>
+                        validateurObligatoire(v, champ: 'Le code budget'),
                   ),
                   ChampNombre(
                     controller: _annee,
-                    label: 'Année',
+                    label: 'Année *',
                     step: 1,
+                    validator: (v) => validateurAnnee(v),
                   ),
                 ),
                 const SizedBox(height: 12),
                 _paire(
                   deuxColonnes,
                   _champDate(
-                    label: 'Date début',
+                    label: 'Date début *',
                     valeur: _debut,
                     onTap: () => _choisirDate(debut: true),
                   ),
                   _champDate(
-                    label: 'Date fin',
+                    label: 'Date fin *',
                     valeur: _fin,
                     onTap: () => _choisirDate(debut: false),
                   ),
                 ),
+                if (_debut != null && _fin != null && _fin!.isBefore(_debut!))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'La date de fin précède la date de début.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 _paire(
                   deuxColonnes,
                   ChampListe(
                     controller: _sourceFinancement,
-                    label: 'Source de financement',
+                    label: 'Source de financement *',
                     valeurs: sourcesFinancement,
                     prefixIcon: Icons.account_balance_wallet_outlined,
                     hint: 'UNICEF, UNFPA, …',
+                    validator: (v) => validateurReference(
+                      v,
+                      sourcesFinancement,
+                      champ: 'La source de financement',
+                    ),
                   ),
                   ChampListe(
                     controller: _district,
-                    label: 'District',
+                    label: 'Lieu d’activité *',
                     valeurs: [for (final d in districts) d.nom],
                     prefixIcon: Icons.map_outlined,
                     // Distance et zone d'indemnité pré-remplies selon le
                     // district sélectionné (référentiel DISTANCES_DISTRICTS).
-                    onChanged: _appliquerDistrict,
+                    onChanged: _appliquerLieuActivite,
+                    validator: (v) => validateurReference(v, [
+                      for (final d in districts) d.nom,
+                    ], champ: 'Le lieu d’activité'),
                   ),
                 ),
                 const SizedBox(height: 12),
-                _paire(
-                  deuxColonnes,
-                  ChampListe(
-                    controller: _responsable,
-                    label: 'Responsable',
-                    valeurs: responsables,
-                    prefixIcon: Icons.person_outline,
-                  ),
-                  ChampNombre(
-                    controller: _distance,
-                    label: 'Distance aller (km) — selon district',
-                    decimales: true,
-                    validator: (v) => validateurMontant(v),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _paire(
-                  deuxColonnes,
-                  ChampNombre(
-                    controller: _participants,
-                    label: 'Nombre de participants',
-                  ),
-                  ChampNombre(
-                    controller: _missionnaires,
-                    label: 'Nombre de missionnaires',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                LigneBascule(
-                  label: 'Restauration prise en charge',
-                  sousTitre:
-                      'Applique automatiquement le taux réduit de 15 % sur '
-                      'les indemnités pendant l\'activité.',
-                  value: _restauration,
-                  onChanged: (v) => setState(() => _restauration = v),
+                Builder(
+                  builder: (context) {
+                    final lignes =
+                        ref
+                            .watch(
+                              lignesBudgetActiviteProvider(_code.text.trim()),
+                            )
+                            .value ??
+                        const <LigneBudget>[];
+                    final montant = lignes.fold<double>(
+                      0,
+                      (total, ligne) => total + ligne.montantAlloue,
+                    );
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.account_balance_wallet_outlined),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Montant alloué',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          Text(
+                            formatMontant(montant),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 ChampListe(
@@ -460,8 +517,9 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
       ),
       actions: [
         TextButton(
-          onPressed:
-              _enregistrement ? null : () => Navigator.of(context).pop(false),
+          onPressed: _enregistrement
+              ? null
+              : () => Navigator.of(context).pop(false),
           child: const Text('Annuler'),
         ),
         FilledButton.icon(
@@ -470,7 +528,8 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
               ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : const Icon(Icons.save_outlined),
           label: const Text('Enregistrer'),
         ),

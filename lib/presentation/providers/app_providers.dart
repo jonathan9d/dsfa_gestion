@@ -31,7 +31,7 @@ final sidebarReduiteProvider = StateProvider<bool>((ref) => false);
 
 /// L'écran de démarrage a-t-il été affiché suffisamment longtemps ?
 /// Tant qu'il est à `false`, l'application reste sur l'écran de démarrage.
-final demarrageTermineProvider = StateProvider<bool>((ref) => false);
+final demarrageTermineProvider = StateProvider<bool>((ref) => true);
 
 /// Notifie le routeur lorsque l'état de connexion change, afin que
 /// la redirection (connexion ↔ application) soit appliquée immédiatement.

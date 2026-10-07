@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/database/database.dart';
+import '../../../domain/rubriques.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/providers.dart';
 import '../../widgets/common.dart';
@@ -124,18 +127,48 @@ class _TableauBudgets extends StatelessWidget {
   final List<LigneBudget> lignes;
   final WidgetRef ref;
 
+  static String _rubriqueDe(LigneBudget l, List<String> rubriques) {
+    final details = _detailsLigne(l);
+    return RubriquesBudget.resoudre(
+      ligneBudgetaire: l.ligneBudgetaire,
+      typeBudget: l.typeBudget,
+      rubriqueEnregistree: '${details['rubrique'] ?? ''}',
+      rubriques: rubriques,
+    );
+  }
+
+  static Map<String, dynamic> _detailsLigne(LigneBudget l) {
+    final brut = l.details;
+    if (brut == null || brut.trim().isEmpty) return <String, dynamic>{};
+    try {
+      return (jsonDecode(brut) as Map).cast<String, dynamic>();
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalPrevisionnel = lignes.fold<double>(
+      0,
+      (s, l) => s + montantPrevisionnelLigneBudget(l),
+    );
     final totalAlloue = lignes.fold<double>(0, (s, l) => s + l.montantAlloue);
+    final confirmees = lignes.where((l) => l.montantAlloue > 0).length;
+    final rubriques = RubriquesBudget.depuisTarifs(
+      (ref.watch(tousTarifsProvider).value ?? const <TarifReferentiel>[]).map(
+        (t) => t.rubrique,
+      ),
+    );
 
-    // Récapitulatif automatique par ligne budgétaire (les totaux les plus
-    // importants d'abord).
-    final parLigne = <String, double>{};
+    // Récapitulatif par **rubrique** (regroupement cohérent avec la
+    // pré-impression et l'export), les totaux les plus importants d'abord.
+    final parRubrique = <String, double>{};
     for (final l in lignes) {
-      parLigne[l.ligneBudgetaire] =
-          (parLigne[l.ligneBudgetaire] ?? 0) + l.montantAlloue;
+      final r = _rubriqueDe(l, rubriques);
+      parRubrique[r] = (parRubrique[r] ?? 0) + l.montantAlloue;
     }
-    final entrees = parLigne.entries.toList()
+    final entrees = parRubrique.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return Padding(
@@ -151,7 +184,8 @@ class _TableauBudgets extends StatelessWidget {
           runSpacing: 8,
           children: [
             _ResumeChip(
-              label: 'Total alloué : ${formatMontant(totalAlloue)}',
+              label:
+                  'Budget prévisionnel : ${formatMontant(totalPrevisionnel)}',
               icone: Icons.account_balance_wallet_outlined,
             ),
             for (final e in entrees.take(6))
@@ -159,6 +193,12 @@ class _TableauBudgets extends StatelessWidget {
                 label: '${e.key} : ${formatMontant(e.value)}',
                 icone: Icons.donut_small_outlined,
               ),
+            _ResumeChip(
+              label:
+                  'Montant alloué confirmé : ${formatMontant(totalAlloue)} '
+                  '($confirmees/${lignes.length})',
+              icone: Icons.verified_outlined,
+            ),
           ],
         ),
         colonnes: [
@@ -174,14 +214,36 @@ class _TableauBudgets extends StatelessWidget {
             ),
           ),
           ColonneTableau(
+            label: 'Rubrique',
+            flex: 3,
+            valeur: (l) => _rubriqueDe(l, rubriques),
+            cellule: (context, l) {
+              final r = _rubriqueDe(l, rubriques);
+              final inconnue = RubriquesBudget.estLibre(r);
+              return Tooltip(
+                message: inconnue
+                    ? 'Rubrique absente des paramètres : complétez '
+                          'REFERENTIEL_TARIFS.'
+                    : 'Rubrique trouvée dans les paramètres·',
+                child: Text(
+                  r,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: inconnue ? FontWeight.w400 : FontWeight.w600,
+                    color: inconnue
+                        ? Theme.of(context).colorScheme.error
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              );
+            },
+          ),
+          ColonneTableau(
             label: 'Ligne budgétaire',
             flex: 4,
             valeur: (l) => l.ligneBudgetaire,
-          ),
-          ColonneTableau(
-            label: 'Type',
-            flex: 3,
-            valeur: (l) => l.typeBudget,
           ),
           ColonneTableau(label: 'Unité', flex: 2, valeur: (l) => l.unite),
           ColonneTableau(
@@ -206,17 +268,52 @@ class _TableauBudgets extends StatelessWidget {
             cleTri: (l) => l.tauxUnitaire,
           ),
           ColonneTableau(
+            label: 'Budget prévisionnel',
+            flex: 3,
+            numerique: true,
+            valeur: (l) => formatMontant(montantPrevisionnelLigneBudget(l)),
+            cleTri: (l) => montantPrevisionnelLigneBudget(l),
+          ),
+          ColonneTableau(
             label: 'Montant alloué',
             flex: 3,
             numerique: true,
             valeur: (l) => formatMontant(l.montantAlloue),
             cleTri: (l) => l.montantAlloue,
-            cellule: (_, l) => Text(
-              formatMontant(l.montantAlloue),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+            // Un montant **déjà confirmé** se distingue au premier coup d'œil
+            // (vert + pastille ✓) d'un montant encore à confirmer (neutre).
+            cellule: (context, l) {
+              final confirme = l.montantAlloue > 0;
+              final scheme = Theme.of(context).colorScheme;
+              return Tooltip(
+                message: confirme
+                    ? 'Montant alloué confirmé'
+                    : 'Montant non confirmé : ouvrez la ligne pour le confirmer',
+                child: Chip(
+                  avatar: Icon(
+                    confirme ? Icons.check_circle_outline : Icons.help_outline,
+                    size: 15,
+                  ),
+                  label: Text(
+                    confirme ? formatMontant(l.montantAlloue) : 'Non confirmé',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: confirme
+                      ? vertValide(context).withValues(alpha: 0.16)
+                      : scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                  labelStyle: TextStyle(
+                    color: confirme
+                        ? vertValide(context)
+                        : scheme.onSurfaceVariant,
+                  ),
+                ),
+              );
+            },
           ),
           ColonneTableau(
             label: 'Observation',

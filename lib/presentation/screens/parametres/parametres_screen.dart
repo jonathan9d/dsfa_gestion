@@ -13,6 +13,7 @@ import '../../../services/excel_import_service.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/providers.dart';
 import '../../reglages/reglages_affichage.dart';
+import '../../reglages/raccourcis.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
@@ -45,18 +46,25 @@ class _ParametresScreenState extends ConsumerState<ParametresScreen> {
               child: BarreOngletsAnimee(
                 onglets: [
                   OngletAnime(
-                      label: 'Tarifs', icon: Icons.price_change_outlined),
+                    label: 'Tarifs',
+                    icon: Icons.price_change_outlined,
+                  ),
                   OngletAnime(
-                      label: 'Distances & districts',
-                      icon: Icons.map_outlined),
+                    label: 'Distances & districts',
+                    icon: Icons.map_outlined,
+                  ),
                   OngletAnime(
-                      label: 'Listes de valeurs',
-                      icon: Icons.list_alt_outlined),
+                    label: 'Listes de valeurs',
+                    icon: Icons.list_alt_outlined,
+                  ),
                   OngletAnime(
-                      label: 'Règles & matrice PJ',
-                      icon: Icons.rule_folder_outlined),
+                    label: 'Règles & matrice PJ',
+                    icon: Icons.rule_folder_outlined,
+                  ),
                   OngletAnime(
-                      label: 'Comptes', icon: Icons.manage_accounts_outlined),
+                    label: 'Comptes',
+                    icon: Icons.manage_accounts_outlined,
+                  ),
                   OngletAnime(label: 'Général', icon: Icons.tune_outlined),
                 ],
               ),
@@ -125,7 +133,9 @@ class _OngletComptes extends ConsumerWidget {
                                     'réservées aux administrateurs.',
                           style: TextStyle(
                             fontSize: 12.5,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -177,7 +187,7 @@ class _OngletTarifsState extends ConsumerState<_OngletTarifs> {
                 width: 340,
                 child: ChampRecherche(
                   controller: _recherche,
-                  hint: 'Rechercher un tarif',
+                  hint: 'Rechercher un taux',
                   onChanged: (v) =>
                       ref.read(filtreRechercheProvider.notifier).state = v,
                 ),
@@ -186,7 +196,7 @@ class _OngletTarifsState extends ConsumerState<_OngletTarifs> {
               FilledButton.icon(
                 onPressed: () => _ouvrirFormulaire(),
                 icon: const Icon(Icons.add),
-                label: const Text('Nouveau tarif'),
+                label: const Text('Nouveau taux'),
               ),
             ],
           ),
@@ -195,92 +205,94 @@ class _OngletTarifsState extends ConsumerState<_OngletTarifs> {
           child: tarifs.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => EtatErreur(erreur: e),
-            data: (liste) => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: TableauGestion<TarifReferentiel>(
-                lignes: liste,
-                cleLigne: (t) => t.id,
-                messageVide:
-                    'Aucun tarif enregistré pour le moment.\n'
-                    'Ajoutez les tarifs de référence (rubrique, ligne budgétaire, zone).',
-                colonnes: [
-                  ColonneTableau(
-                    label: 'Rubrique',
-                    flex: 3,
-                    valeur: (t) => t.rubrique,
-                  ),
-                  ColonneTableau(
-                    label: 'Ligne budgétaire',
-                    flex: 3,
-                    valeur: (t) => t.ligneBudgetaire,
-                  ),
-                  ColonneTableau(
-                    label: 'Type activité',
-                    flex: 2,
-                    valeur: (t) => t.typeActivite,
-                  ),
-                  ColonneTableau(label: 'Unité', flex: 2, valeur: (t) => t.unite),
-                  ColonneTableau(label: 'Zone', flex: 2, valeur: (t) => t.zone),
-                  ColonneTableau(
-                    label: 'Tarif (Ar)',
-                    flex: 2,
-                    numerique: true,
-                    valeur: (t) => formatMontant(t.tarif),
-                    cleTri: (t) => t.tarif,
-                  ),
-                  ColonneTableau(
-                    label: 'Actif',
-                    flex: 1,
-                    valeur: (t) => t.actif ? 'Actif' : 'Inactif',
-                    cellule: (_, t) => SwitchCompact(
-                      value: t.actif,
-                      infobulle: t.actif
-                          ? 'Désactiver ce tarif'
-                          : 'Activer ce tarif',
-                      onChanged: (v) async {
-                        await ref.read(tarifsRepositoryProvider).update(
-                              t.id,
-                              ReferentielTarifsCompanion(actif: drift.Value(v)),
-                            );
+            data: (liste) {
+              final visibles = liste.where((t) {
+                final billet =
+                    t.ligneBudgetaire.toUpperCase().contains('BILLET') &&
+                    t.ligneBudgetaire.toUpperCase().contains('AVION');
+                return billet || t.tarif == 0 || t.tarif >= 20000;
+              }).toList();
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: TableauGestion<TarifReferentiel>(
+                  lignes: visibles,
+                  cleLigne: (t) => t.id,
+                  messageVide: 'Aucun taux enregistré.',
+                  colonnes: [
+                    ColonneTableau(
+                      label: 'Rubrique',
+                      flex: 3,
+                      valeur: (t) => t.rubrique,
+                    ),
+                    ColonneTableau(
+                      label: 'Ligne budgétaire',
+                      flex: 4,
+                      valeur: (t) => _libelleLigne(t.ligneBudgetaire),
+                    ),
+                    ColonneTableau(
+                      label: 'Type de taux',
+                      flex: 3,
+                      valeur: (t) => t.typeActivite.isEmpty
+                          ? 'Taux indemnité'
+                          : t.typeActivite,
+                    ),
+                    ColonneTableau(
+                      label: 'Unité',
+                      flex: 2,
+                      valeur: (t) => t.unite,
+                    ),
+                    ColonneTableau(
+                      label: 'Zone',
+                      flex: 2,
+                      valeur: (t) => t.zone,
+                    ),
+                    ColonneTableau(
+                      label: 'Taux (Ar)',
+                      flex: 2,
+                      numerique: true,
+                      valeur: (t) =>
+                          t.tarif <= 0 ? '—' : formatMontant(t.tarif),
+                      cleTri: (t) => t.tarif,
+                    ),
+                  ],
+                  actions: [
+                    ActionTableau<TarifReferentiel>(
+                      icone: Icons.edit_outlined,
+                      infobulle: 'Modifier',
+                      onTap: (t) => _ouvrirFormulaire(tarif: t),
+                    ),
+                    ActionTableau<TarifReferentiel>(
+                      icone: Icons.delete_outline,
+                      infobulle: 'Supprimer',
+                      couleur: Theme.of(context).colorScheme.error,
+                      onTap: (t) async {
+                        final ok = await confirmer(
+                          context,
+                          titre: 'Supprimer le taux',
+                          message:
+                              'Supprimer « ${_libelleLigne(t.ligneBudgetaire)} » ?',
+                        );
+                        if (!ok) return;
+                        await ref.read(tarifsRepositoryProvider).delete(t.id);
                       },
                     ),
-                  ),
-                ],
-                actions: [
-                  ActionTableau<TarifReferentiel>(
-                    icone: Icons.edit_outlined,
-                    infobulle: 'Modifier',
-                    onTap: (t) => _ouvrirFormulaire(tarif: t),
-                  ),
-                  ActionTableau<TarifReferentiel>(
-                    icone: Icons.delete_outline,
-                    infobulle: 'Supprimer',
-                    couleur: Theme.of(context).colorScheme.error,
-                    onTap: (t) async {
-                      final ok = await confirmer(
-                        context,
-                        titre: 'Supprimer le tarif',
-                        message:
-                            'Supprimer le tarif « ${t.ligneBudgetaire} » (${t.zone}) ?',
-                      );
-                      if (!ok) return;
-                      await ref.read(tarifsRepositoryProvider).delete(t.id);
-                      if (context.mounted) notifier(context, 'Tarif supprimé');
-                    },
-                  ),
-                ],
-                onSupprimer: (lignes) async {
-                  final repo = ref.read(tarifsRepositoryProvider);
-                  for (final t in lignes) {
-                    await repo.delete(t.id);
-                  }
-                },
-              ),
-            ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],
     );
+  }
+
+  String _libelleLigne(String ligne) {
+    final normalise = ligne.toUpperCase().trim();
+    if (normalise.contains('DEPLACEMENT PAR AVION') ||
+        normalise.contains('DÉPLACEMENT PAR AVION')) {
+      return 'Billet d’avion';
+    }
+    return ligne;
   }
 
   Future<void> _ouvrirFormulaire({TarifReferentiel? tarif}) async {
@@ -288,10 +300,9 @@ class _OngletTarifsState extends ConsumerState<_OngletTarifs> {
       context: context,
       builder: (_) => _TarifDialog(tarif: tarif),
     );
-    if (ok == true && mounted) notifier(context, 'Tarif enregistré');
+    if (ok == true && mounted) notifier(context, 'Taux enregistré');
   }
 }
-
 
 class _TarifDialog extends ConsumerStatefulWidget {
   const _TarifDialog({this.tarif});
@@ -305,33 +316,59 @@ class _TarifDialogState extends ConsumerState<_TarifDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _rubrique;
   late final TextEditingController _ligne;
-  late final TextEditingController _type;
+  late final TextEditingController _typeTaux;
   late final TextEditingController _unite;
   late final TextEditingController _zone;
   late final TextEditingController _tarif;
   late final TextEditingController _observation;
-  bool _actif = true;
+
+  static const _typesTaux = [
+    'Taux indemnité',
+    'Taux frais de déplacement forfaitaire',
+    'Taux frais de transfert aéroport',
+    'Taux frais taxi-brousse',
+  ];
 
   @override
   void initState() {
     super.initState();
     final t = widget.tarif;
     _rubrique = TextEditingController(text: t?.rubrique ?? '');
-    _ligne = TextEditingController(text: t?.ligneBudgetaire ?? '');
-    _type = TextEditingController(text: t?.typeActivite ?? 'Tous');
+    _ligne = TextEditingController(
+      text: _normaliserLigne(t?.ligneBudgetaire ?? ''),
+    );
+    _typeTaux = TextEditingController(
+      text: t?.typeActivite?.isNotEmpty == true
+          ? t!.typeActivite
+          : _typesTaux.first,
+    );
     _unite = TextEditingController(text: t?.unite ?? 'personne/jour');
     _zone = TextEditingController(text: t?.zone ?? 'Tous');
-    _tarif = TextEditingController(text: (t?.tarif ?? 0).toString());
+    _tarif = TextEditingController(
+      text: (t?.tarif ?? 0) == 0 ? '' : t!.tarif.toString(),
+    );
     _observation = TextEditingController(text: t?.observation ?? '');
-    _actif = t?.actif ?? true;
   }
+
+  static String _normaliserLigne(String ligne) {
+    final u = ligne.toUpperCase();
+    if (u.contains('DEPLACEMENT PAR AVION') ||
+        u.contains('DÉPLACEMENT PAR AVION')) {
+      return 'Billet d’avion';
+    }
+    return ligne;
+  }
+
+  bool get _billetAvion =>
+      _ligne.text.toUpperCase().contains('BILLET') &&
+      _ligne.text.toUpperCase().contains('AVION');
 
   @override
   void dispose() {
     for (final c in [
       _rubrique,
       _ligne,
-      _type,
+      _typeTaux,
       _unite,
       _zone,
       _tarif,
@@ -344,17 +381,29 @@ class _TarifDialogState extends ConsumerState<_TarifDialog> {
 
   Future<void> _enregistrer() async {
     if (!_formKey.currentState!.validate()) return;
-    final repo = ref.read(tarifsRepositoryProvider);
+    final valeur = _billetAvion
+        ? 0.0
+        : (double.tryParse(_tarif.text.replaceAll(',', '.')) ?? 0);
+    if (!_billetAvion && valeur < 20000) {
+      notifier(
+        context,
+        'Un taux doit être supérieur ou égal à 20 000 Ar.',
+        erreur: true,
+      );
+      return;
+    }
     final companion = ReferentielTarifsCompanion(
       rubrique: drift.Value(_rubrique.text.trim()),
-      ligneBudgetaire: drift.Value(_ligne.text.trim()),
-      typeActivite: drift.Value(_type.text.trim()),
+      ligneBudgetaire: drift.Value(_normaliserLigne(_ligne.text.trim())),
+      // Colonne historique réutilisée comme stockage du « type de taux ».
+      typeActivite: drift.Value(_typeTaux.text.trim()),
       unite: drift.Value(_unite.text.trim()),
       zone: drift.Value(_zone.text.trim()),
-      tarif: drift.Value(double.tryParse(_tarif.text.replaceAll(',', '.')) ?? 0),
-      actif: drift.Value(_actif),
+      tarif: drift.Value(valeur),
+      actif: const drift.Value(true),
       observation: drift.Value(_observation.text.trim()),
     );
+    final repo = ref.read(tarifsRepositoryProvider);
     if (widget.tarif == null) {
       await repo.insert(companion);
     } else {
@@ -365,22 +414,19 @@ class _TarifDialogState extends ConsumerState<_TarifDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final existants = ref.watch(tousTarifsProvider).value ??
-        const <TarifReferentiel>[];
-    List<String> distinctes(String Function(TarifReferentiel) f) => existants
-        .map(f)
-        .where((v) => v.trim().isNotEmpty)
-        .toSet()
-        .toList();
+    final existants =
+        ref.watch(tousTarifsProvider).value ?? const <TarifReferentiel>[];
+    List<String> distinctes(String Function(TarifReferentiel) f) =>
+        existants.map(f).where((v) => v.trim().isNotEmpty).toSet().toList();
     final rubriques = distinctes((t) => t.rubrique);
-    final lignes = distinctes((t) => t.ligneBudgetaire);
-    final types = distinctes((t) => t.typeActivite);
+    final lignes = distinctes((t) => _normaliserLigne(t.ligneBudgetaire));
     final unites = distinctes((t) => t.unite);
     final zones = distinctes((t) => t.zone);
     final observations = distinctes((t) => t.observation ?? '');
+
     return AlertDialog(
       title: TitreDialogue(
-        widget.tarif == null ? 'Nouveau tarif' : 'Modifier le tarif',
+        widget.tarif == null ? 'Nouveau taux' : 'Modifier le taux',
         icone: Icons.price_check_outlined,
       ),
       content: SizedBox(
@@ -405,6 +451,7 @@ class _TarifDialogState extends ConsumerState<_TarifDialog> {
                   label: 'Ligne budgétaire *',
                   valeurs: lignes,
                   prefixIcon: Icons.receipt_outlined,
+                  onChanged: (_) => setState(() {}),
                   validator: (v) =>
                       validateurObligatoire(v, champ: 'La ligne budgétaire'),
                 ),
@@ -413,10 +460,10 @@ class _TarifDialogState extends ConsumerState<_TarifDialog> {
                   children: [
                     Expanded(
                       child: ChampListe(
-                        controller: _type,
-                        label: 'Type activité',
-                        valeurs: types,
-                        prefixIcon: Icons.event_note_outlined,
+                        controller: _typeTaux,
+                        label: 'Type de taux *',
+                        valeurs: _typesTaux,
+                        prefixIcon: Icons.tune_outlined,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -443,23 +490,22 @@ class _TarifDialogState extends ConsumerState<_TarifDialog> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: ChampNombre(
-                        controller: _tarif,
-                        label: 'Tarif (Ar) *',
-                        step: 1000,
-                        validator: (v) => validateurMontant(v, obligatoire: true),
-                      ),
+                      child: _billetAvion
+                          ? const InputDecorator(
+                              decoration: InputDecoration(labelText: 'Taux'),
+                              child: Text('Non défini pour un billet d’avion'),
+                            )
+                          : ChampNombre(
+                              controller: _tarif,
+                              label: 'Taux (Ar) *',
+                              step: 1000,
+                              validator: (v) =>
+                                  validateurMontant(v, obligatoire: true),
+                            ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                LigneBascule(
-                  label: 'Tarif actif',
-                  sousTitre:
-                      'Seuls les tarifs actifs sont utilisés dans les calculs.',
-                  value: _actif,
-                  onChanged: (v) => setState(() => _actif = v),
-                ),
                 ChampListe(
                   controller: _observation,
                   label: 'Observation',
@@ -675,18 +721,12 @@ class _DistrictDialogState extends ConsumerState<_DistrictDialog> {
     _nom = TextEditingController(text: d?.nom ?? '');
     _region = TextEditingController(text: d?.region ?? '');
     _chefLieu = TextEditingController(text: d?.chefLieuRegion ?? '');
-    _distanceAller = TextEditingController(
-      text: _nb(d?.distanceAllerKm ?? 0),
-    );
+    _distanceAller = TextEditingController(text: _nb(d?.distanceAllerKm ?? 0));
     _distanceCarburant = TextEditingController(
       text: _nb(d?.distanceCarburantKm ?? 0),
     );
-    _delaiAller = TextEditingController(
-      text: _nb(d?.delaiRouteAller ?? 0),
-    );
-    _delaiRetour = TextEditingController(
-      text: _nb(d?.delaiRouteRetour ?? 0),
-    );
+    _delaiAller = TextEditingController(text: _nb(d?.delaiRouteAller ?? 0));
+    _delaiRetour = TextEditingController(text: _nb(d?.delaiRouteRetour ?? 0));
     _delaiTotal.text = _nb(d?.delaiRouteTotal ?? 0);
     _estChefLieu = d?.estChefLieuRegion ?? false;
     _delaiAller.addListener(_recalculerDelai);
@@ -917,7 +957,6 @@ class _DistrictDialogState extends ConsumerState<_DistrictDialog> {
   }
 }
 
-
 class _OngletListes extends ConsumerStatefulWidget {
   const _OngletListes();
 
@@ -959,7 +998,8 @@ class _OngletListesState extends ConsumerState<_OngletListes> {
                     for (final c in _categories)
                       DropdownMenuItem(value: c, child: Text(c)),
                   ],
-                  onChanged: (v) => setState(() => _categorie = v ?? _categorie),
+                  onChanged: (v) =>
+                      setState(() => _categorie = v ?? _categorie),
                 ),
               ),
               const Spacer(),
@@ -976,12 +1016,14 @@ class _OngletListesState extends ConsumerState<_OngletListes> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => EtatErreur(erreur: e),
             data: (liste) {
-              final filtrees =
-                  liste.where((e) => e.categorie == _categorie).toList();
+              final filtrees = liste
+                  .where((e) => e.categorie == _categorie)
+                  .toList();
               if (filtrees.isEmpty) {
                 return const EtatVide(
-                    message: 'Aucune valeur dans cette catégorie.',
-                    icone: Icons.list_alt_outlined);
+                  message: 'Aucune valeur dans cette catégorie.',
+                  icone: Icons.list_alt_outlined,
+                );
               }
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1046,7 +1088,9 @@ class _OngletListesState extends ConsumerState<_OngletListes> {
       ),
     );
     if (ok == true && controller.text.trim().isNotEmpty) {
-      await ref.read(listesRepositoryProvider).insert(
+      await ref
+          .read(listesRepositoryProvider)
+          .insert(
             ReferenceValeursCompanion.insert(
               categorie: _categorie,
               valeur: controller.text.trim(),
@@ -1262,10 +1306,8 @@ class _OngletReglesState extends ConsumerState<_OngletRegles> {
               onEditer: () async {
                 final resultat = await showDialog<List<ReglePJRequise>>(
                   context: context,
-                  builder: (_) => _EditeurMatricePJ(
-                    regles: r,
-                    jalons: jalonsDate,
-                  ),
+                  builder: (_) =>
+                      _EditeurMatricePJ(regles: r, jalons: jalonsDate),
                 );
                 if (resultat == null) return;
                 await _persister(_avec(r, matrice: resultat));
@@ -1296,12 +1338,13 @@ class _BandeauEdition extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.edit_note_outlined, size: 20,
-              color: theme.colorScheme.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(message, style: theme.textTheme.bodySmall),
+          Icon(
+            Icons.edit_note_outlined,
+            size: 20,
+            color: theme.colorScheme.primary,
           ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message, style: theme.textTheme.bodySmall)),
         ],
       ),
     );
@@ -1333,13 +1376,20 @@ class _CarteRegles extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icone ?? Icons.tune, size: 18,
-                    color: theme.colorScheme.primary),
+                Icon(
+                  icone ?? Icons.tune,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(titre,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    titre,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
                 if (onEditer != null)
                   TextButton.icon(
@@ -1351,8 +1401,7 @@ class _CarteRegles extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             if (entrees.isEmpty)
-              Text('Aucune valeur définie.',
-                  style: theme.textTheme.bodySmall)
+              Text('Aucune valeur définie.', style: theme.textTheme.bodySmall)
             else
               for (final e in entrees.entries)
                 Padding(
@@ -1361,14 +1410,15 @@ class _CarteRegles extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(e.key,
-                            style: theme.textTheme.bodyMedium),
+                        child: Text(e.key, style: theme.textTheme.bodyMedium),
                       ),
                       if (e.value.isNotEmpty)
                         Text(
                           e.value,
                           style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 13),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
                     ],
                   ),
@@ -1398,13 +1448,17 @@ class _CarteMatricePJ extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.rule_folder_outlined, size: 18,
-                    color: theme.colorScheme.primary),
+                Icon(
+                  Icons.rule_folder_outlined,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 const Expanded(
-                  child: Text('Matrice des PJ requises',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    'Matrice des PJ requises',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
                 ),
                 if (onEditer != null)
                   TextButton.icon(
@@ -1421,8 +1475,10 @@ class _CarteMatricePJ extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             if (regles.matricePJ.isEmpty)
-              Text('Aucune pièce définie. Cliquez sur « Modifier » pour en ajouter.',
-                  style: theme.textTheme.bodySmall),
+              Text(
+                'Aucune pièce définie. Cliquez sur « Modifier » pour en ajouter.',
+                style: theme.textTheme.bodySmall,
+              ),
             for (final rubrique in regles.rubriques) ...[
               Padding(
                 padding: const EdgeInsets.only(top: 8, bottom: 4),
@@ -1503,7 +1559,8 @@ class _EditeurValeurs extends StatefulWidget {
 }
 
 class _EditeurValeursState extends State<_EditeurValeurs> {
-  final _lignes = <({TextEditingController cle, TextEditingController valeur})>[];
+  final _lignes =
+      <({TextEditingController cle, TextEditingController valeur})>[];
 
   @override
   void initState() {
@@ -1512,9 +1569,7 @@ class _EditeurValeursState extends State<_EditeurValeurs> {
       _lignes.add((
         cle: TextEditingController(text: e.key),
         valeur: TextEditingController(
-          text: widget.entier
-              ? e.value.round().toString()
-              : _nombre(e.value),
+          text: widget.entier ? e.value.round().toString() : _nombre(e.value),
         ),
       ));
     }
@@ -1533,10 +1588,12 @@ class _EditeurValeursState extends State<_EditeurValeurs> {
     super.dispose();
   }
 
-  void _ajouter() => setState(() => _lignes.add((
-    cle: TextEditingController(),
-    valeur: TextEditingController(),
-  )));
+  void _ajouter() => setState(
+    () => _lignes.add((
+      cle: TextEditingController(),
+      valeur: TextEditingController(),
+    )),
+  );
 
   void _supprimer(int i) => setState(() {
     _lignes[i].cle.dispose();
@@ -1577,8 +1634,9 @@ class _EditeurValeursState extends State<_EditeurValeurs> {
                         flex: 3,
                         child: TextField(
                           controller: _lignes[i].cle,
-                          decoration:
-                              const InputDecoration(labelText: 'Libellé'),
+                          decoration: const InputDecoration(
+                            labelText: 'Libellé',
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -1588,8 +1646,9 @@ class _EditeurValeursState extends State<_EditeurValeurs> {
                           controller: _lignes[i].valeur,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText:
-                                widget.suffixe.isEmpty ? 'Valeur' : widget.suffixe,
+                            labelText: widget.suffixe.isEmpty
+                                ? 'Valeur'
+                                : widget.suffixe,
                           ),
                         ),
                       ),
@@ -1658,8 +1717,7 @@ class _EditeurListeState extends State<_EditeurListe> {
     super.dispose();
   }
 
-  void _ajouter() =>
-      setState(() => _controllers.add(TextEditingController()));
+  void _ajouter() => setState(() => _controllers.add(TextEditingController()));
 
   void _supprimer(int i) => setState(() {
     _controllers[i].dispose();
@@ -1695,8 +1753,9 @@ class _EditeurListeState extends State<_EditeurListe> {
                       Expanded(
                         child: TextField(
                           controller: _controllers[i],
-                          decoration:
-                              const InputDecoration(labelText: 'Valeur'),
+                          decoration: const InputDecoration(
+                            labelText: 'Valeur',
+                          ),
                         ),
                       ),
                       IconButton(
@@ -1791,8 +1850,10 @@ class _EditeurMatricePJState extends State<_EditeurMatricePJ> {
           children: [
             Row(
               children: [
-                Text('${_matrice.length} pièce(s)',
-                    style: theme.textTheme.bodySmall),
+                Text(
+                  '${_matrice.length} pièce(s)',
+                  style: theme.textTheme.bodySmall,
+                ),
                 const Spacer(),
                 FilledButton.icon(
                   onPressed: () => _editer(),
@@ -1826,7 +1887,9 @@ class _EditeurMatricePJState extends State<_EditeurMatricePJ> {
                             title: Text(
                               '${p.rubrique} · ${p.libelle}',
                               style: const TextStyle(
-                                  fontSize: 13.5, fontWeight: FontWeight.w600),
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             subtitle: Text(
                               [
@@ -1841,12 +1904,18 @@ class _EditeurMatricePJState extends State<_EditeurMatricePJ> {
                               children: [
                                 IconButton(
                                   tooltip: 'Modifier',
-                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 18,
+                                  ),
                                   onPressed: () => _editer(regle: p, index: i),
                                 ),
                                 IconButton(
                                   tooltip: 'Supprimer',
-                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                  ),
                                   onPressed: () => _supprimer(i),
                                 ),
                               ],
@@ -1985,8 +2054,7 @@ class _ReglePJDialogState extends State<_ReglePJDialog> {
                   label: 'Pièce justificative *',
                   valeurs: widget.pieces,
                   prefixIcon: Icons.attach_file_outlined,
-                  validator: (v) =>
-                      validateurObligatoire(v, champ: 'La pièce'),
+                  validator: (v) => validateurObligatoire(v, champ: 'La pièce'),
                 ),
                 const SizedBox(height: 12),
                 ChampListe(
@@ -2002,12 +2070,15 @@ class _ReglePJDialogState extends State<_ReglePJDialog> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _typeControle,
-                        decoration:
-                            const InputDecoration(labelText: 'Type de contrôle'),
+                        decoration: const InputDecoration(
+                          labelText: 'Type de contrôle',
+                        ),
                         items: const [
                           DropdownMenuItem(value: 'DATE', child: Text('DATE')),
                           DropdownMenuItem(
-                              value: 'MANUEL', child: Text('MANUEL')),
+                            value: 'MANUEL',
+                            child: Text('MANUEL'),
+                          ),
                         ],
                         onChanged: (v) =>
                             setState(() => _typeControle = v ?? 'DATE'),
@@ -2020,8 +2091,7 @@ class _ReglePJDialogState extends State<_ReglePJDialog> {
                           LigneBascule(
                             label: 'Pièce obligatoire',
                             value: _obligatoire,
-                            onChanged: (v) =>
-                                setState(() => _obligatoire = v),
+                            onChanged: (v) => setState(() => _obligatoire = v),
                           ),
                           LigneBascule(
                             label: 'Règle active',
@@ -2086,6 +2156,8 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
   late final TextEditingController _devise;
   late final TextEditingController _exercice;
   late final TextEditingController _dureeJours;
+  late final TextEditingController _raccourciMenu;
+  late final TextEditingController _raccourciDashboard;
   bool _charge = false;
 
   @override
@@ -2096,6 +2168,10 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
     _devise = TextEditingController();
     _exercice = TextEditingController();
     _dureeJours = TextEditingController();
+    _raccourciMenu = TextEditingController(text: RaccourcisApp.defaut.menu);
+    _raccourciDashboard = TextEditingController(
+      text: RaccourcisApp.defaut.dashboard,
+    );
     _charger();
   }
 
@@ -2107,12 +2183,26 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
     _exercice.text = await repo.lire('exercice') ?? '2026';
     _dureeJours.text =
         '${await ref.read(sessionRepositoryProvider).dureeJours()}';
+    final raccourcis = await ref
+        .read(parametresRepositoryProvider)
+        .lire('raccourcis.app');
+    final config = RaccourcisApp.fromJson(raccourcis);
+    _raccourciMenu.text = config.menu;
+    _raccourciDashboard.text = config.dashboard;
     if (mounted) setState(() => _charge = true);
   }
 
   @override
   void dispose() {
-    for (final c in [_banque, _compte, _devise, _exercice, _dureeJours]) {
+    for (final c in [
+      _banque,
+      _compte,
+      _devise,
+      _exercice,
+      _dureeJours,
+      _raccourciMenu,
+      _raccourciDashboard,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -2129,6 +2219,12 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
                 SessionRepository.dureeMaximaleSansOuvertureJours)
             .clamp(1, 30);
     await repo.ecrire(SessionRepository.cleDureeJours, '$jours');
+    final config = RaccourcisApp(
+      menu: normaliserRaccourci(_raccourciMenu.text),
+      dashboard: normaliserRaccourci(_raccourciDashboard.text),
+    );
+    await repo.ecrire('raccourcis.app', jsonEncode(config.toJson()));
+    ref.invalidate(raccourcisProvider);
     if (mounted) {
       ref.invalidate(parametresProvider);
       notifier(context, 'Paramètres enregistrés');
@@ -2217,9 +2313,10 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Préférences de l\'application',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const Text(
+                  'Préférences de l\'application',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
                 const Text(
                   'Ces réglages s\'appliquent immédiatement et sont conservés '
@@ -2280,6 +2377,54 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
+                  'Raccourcis clavier',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Modifiez les raccourcis Windows utilisés dans l’application.',
+                  style: TextStyle(fontSize: 12.5),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChampListe(
+                        controller: _raccourciMenu,
+                        label: 'Déployer / replier le menu',
+                        valeurs: const ['CTRL+B', 'CTRL+M', 'CTRL+2'],
+                        prefixIcon: Icons.menu_open_outlined,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ChampListe(
+                        controller: _raccourciDashboard,
+                        label: 'Ouvrir le tableau de bord',
+                        valeurs: const ['CTRL+1', 'CTRL+D', 'CTRL+0'],
+                        prefixIcon: Icons.dashboard_outlined,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _enregistrer,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Enregistrer les raccourcis'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
                   'Affichage des tableaux et de l\'interface',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
@@ -2302,14 +2447,14 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
                   ),
                 ),
                 LigneBascule(
-                  label: 'Filtres ouverts par défaut',
+                  label: 'Filtres visibles dès l’ouverture',
                   sousTitre:
-                      'Les barres de filtres des tableaux sont affichées dès '
-                      'l\'ouverture d\'une page.',
+                      'Par défaut les barres de filtres sont **masquées** : '
+                      'chaque tableau se contente d’un bouton « Filtrer ». '
+                      'Activez ce réglage pour les afficher d’emblée.',
                   value: reglages.filtresOuverts,
-                  onChanged: (v) => _modifierReglages(
-                    (r) => r.copyWith(filtresOuverts: v),
-                  ),
+                  onChanged: (v) =>
+                      _modifierReglages((r) => r.copyWith(filtresOuverts: v)),
                 ),
                 LigneBascule(
                   label: 'Sauvegarde automatique',
@@ -2329,9 +2474,8 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
                 const SizedBox(height: 8),
                 _paletteChoix(
                   actuelle: reglages.couleurPrimaire,
-                  onChoisir: (c) => _modifierReglages(
-                    (r) => r.copyWith(couleurPrimaire: c),
-                  ),
+                  onChoisir: (c) =>
+                      _modifierReglages((r) => r.copyWith(couleurPrimaire: c)),
                 ),
                 const SizedBox(height: 16),
                 const Text(
@@ -2390,9 +2534,10 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Sécurité',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const Text(
+                  'Sécurité',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
                 const Text(
                   'Au-delà de ce délai sans ouverture, le mot de passe est '
@@ -2432,9 +2577,10 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Informations bancaires',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const Text(
+                  'Informations bancaires',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 16),
                 ChampListe(
                   controller: _banque,
@@ -2504,9 +2650,10 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Rôles et utilisateurs',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const Text(
+                  'Rôles et utilisateurs',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
                 const Text(
                   'L\'architecture prend en charge les rôles ADMIN, GESTIONNAIRE et LECTEUR. '
@@ -2518,14 +2665,12 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
                     final role = ref.watch(roleProvider);
                     return DropdownButtonFormField<RoleUtilisateur>(
                       initialValue: role,
-                      decoration:
-                          const InputDecoration(labelText: 'Rôle actif'),
+                      decoration: const InputDecoration(
+                        labelText: 'Rôle actif',
+                      ),
                       items: [
                         for (final r in RoleUtilisateur.values)
-                          DropdownMenuItem(
-                            value: r,
-                            child: Text(r.code),
-                          ),
+                          DropdownMenuItem(value: r, child: Text(r.code)),
                       ],
                       onChanged: (v) {
                         if (v != null) {
@@ -2546,9 +2691,10 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Historique des modifications',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const Text(
+                  'Historique des modifications',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 12),
                 Consumer(
                   builder: (context, ref, _) {

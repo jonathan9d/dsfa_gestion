@@ -11,6 +11,7 @@ import '../../domain/statuts.dart';
 import '../providers/app_providers.dart';
 import '../providers/providers.dart';
 import '../reglages/reglages_affichage.dart';
+import '../reglages/raccourcis.dart';
 import '../router/app_router.dart';
 import '../screens/profil/profil_screen.dart';
 import '../widgets/common.dart';
@@ -66,17 +67,43 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
 
     if (estDesktop) {
+      final raccourcis =
+          ref.watch(raccourcisProvider).value ?? RaccourcisApp.defaut;
       return Scaffold(
-        body: Row(
-          children: [
-            _Sidebar(location: location),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: _FondPage(
-                child: _ContenuAnime(location: location, child: child),
+        body: Shortcuts(
+          shortcuts: raccourcisClavier(raccourcis),
+          child: Actions(
+            actions: {
+              OuvrirMenuIntent: CallbackAction<OuvrirMenuIntent>(
+                onInvoke: (_) {
+                  ref.read(sidebarReduiteProvider.notifier).state = !ref.read(
+                    sidebarReduiteProvider,
+                  );
+                  return null;
+                },
               ),
+              AllerDashboardIntent: CallbackAction<AllerDashboardIntent>(
+                onInvoke: (_) {
+                  context.go(AppRoutes.dashboard);
+                  return null;
+                },
+              ),
+            },
+            child: Row(
+              children: [
+                SizedBox(
+                  height: double.infinity,
+                  child: _Sidebar(location: location),
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: _FondPage(
+                    child: _ContenuAnime(location: location, child: child),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
     }
@@ -91,18 +118,15 @@ class _AppShellState extends ConsumerState<AppShell> {
           children: [
             Image.asset(
               'assets/logo_dsfa1.jpeg',
-              width: 34,
-              height: 30,
+              width: 42,
+              height: 36,
               fit: BoxFit.contain,
             ),
             const SizedBox(width: 10),
             const Text('DSFA Gestion'),
           ],
         ),
-        actions: const [
-          _Horloge(compact: true),
-          SizedBox(width: 4),
-        ],
+        actions: const [_Horloge(compact: true), SizedBox(width: 4)],
       ),
       drawer: Drawer(child: _DrawerMobile(entreeActive: entreeActive)),
       body: _FondPage(
@@ -169,10 +193,8 @@ class _ContenuAnime extends StatelessWidget {
     return ClipRect(
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
-        layoutBuilder: (courant, precedents) => Stack(
-          fit: StackFit.expand,
-          children: [...precedents, ?courant],
-        ),
+        layoutBuilder: (courant, precedents) =>
+            Stack(fit: StackFit.expand, children: [...precedents, ?courant]),
         child: KeyedSubtree(key: ValueKey<String>(location), child: child),
       ),
     );
@@ -197,15 +219,16 @@ class _DrawerMobile extends ConsumerWidget {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
             decoration: BoxDecoration(color: scheme.primaryContainer),
             child: Row(
               children: [
                 Image.asset(
                   'assets/logo_dsfa1.jpeg',
-                  width: 46,
-                  height: 40,
+                  width: 58,
+                  height: 52,
                   fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -295,18 +318,13 @@ class _Sidebar extends ConsumerWidget {
     );
   }
 
-  Widget _contenu(
-    BuildContext context,
-    WidgetRef ref, {
-    required bool dense,
-  }) {
+  Widget _contenu(BuildContext context, WidgetRef ref, {required bool dense}) {
     final scheme = Theme.of(context).colorScheme;
     final reduite = ref.watch(sidebarReduiteProvider);
     final groupes = <String, List<EntreeNavigation>>{};
     for (final e in entreesNavigation) {
       groupes.putIfAbsent(e.groupe, () => []).add(e);
     }
-    final tailleLogo = reduite ? 30.0 : (dense ? 32.0 : 38.0);
 
     return AnimatedContainer(
       key: const ValueKey('menu-lateral'),
@@ -318,60 +336,97 @@ class _Sidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Bandeau de marque : le logo occupe **toute la largeur disponible**
+          // (menu déployé) au lieu d'être serré à côté du titre, qui passe
+          // dessous. Menu replié : le logo reste centré et lisible.
           Padding(
             padding: EdgeInsets.fromLTRB(
-              reduite ? 10 : (dense ? 16 : 20),
-              dense ? 12 : 20,
-              10,
-              dense ? 8 : 14,
+              reduite ? 10 : 12,
+              dense ? 12 : 16,
+              reduite ? 10 : 12,
+              dense ? 8 : 12,
             ),
-            child: Row(
-              mainAxisAlignment: reduite
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
-              children: [
-                Container(
-                  padding: EdgeInsets.all(reduite ? 6 : 8),
-                  decoration: BoxDecoration(
-                    color: scheme.primary,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Image.asset(
-                    'assets/logo_dsfa1.jpeg',
-                    width: tailleLogo,
-                    height: tailleLogo,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                if (!reduite) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'DSFA GESTION',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: dense ? 14 : 15,
-                            color: scheme.onSurface,
-                          ),
-                        ),
-                        if (!dense)
-                          Text(
-                            'Suivi & contrôle',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                      ],
+            // Menu replié → logo seul. Fenêtre peu haute → logo et titre
+            // côte à côte (le menu doit rester **entièrement visible**).
+            // Sinon → grand logo empilé au-dessus du titre.
+            child: reduite
+                ? Center(
+                    child: Image.asset(
+                      'assets/logo_dsfa1.jpeg',
+                      width: 62,
+                      height: 62,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
                     ),
+                  )
+                : dense
+                ? Row(
+                    children: [
+                      Image.asset(
+                        'assets/logo_dsfa1.jpeg',
+                        width: 96,
+                        height: 84,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'DSFA GESTION',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                letterSpacing: 0.4,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                            Text(
+                              'Suivi & contrôle',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Image.asset(
+                        'assets/logo_dsfa1.jpeg',
+                        height: 138,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'DSFA GESTION',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16.5,
+                          letterSpacing: 0.5,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        'Suivi & contrôle',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ],
-            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -390,15 +445,15 @@ class _Sidebar extends ConsumerWidget {
                               ? Icons.keyboard_double_arrow_right
                               : Icons.keyboard_double_arrow_left,
                         ),
-                        onPressed: () => ref
-                            .read(sidebarReduiteProvider.notifier)
-                            .state = !reduite,
+                        onPressed: () =>
+                            ref.read(sidebarReduiteProvider.notifier).state =
+                                !reduite,
                       ),
                     )
                   : TextButton.icon(
-                      onPressed: () => ref
-                          .read(sidebarReduiteProvider.notifier)
-                          .state = !reduite,
+                      onPressed: () =>
+                          ref.read(sidebarReduiteProvider.notifier).state =
+                              !reduite,
                       icon: Icon(
                         reduite
                             ? Icons.keyboard_double_arrow_right
@@ -416,46 +471,63 @@ class _Sidebar extends ConsumerWidget {
           ),
           const Divider(height: 1),
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.symmetric(vertical: dense ? 6 : 12),
-              children: [
-                for (final entry in groupes.entries) ...[
-                  if (entry.key.isNotEmpty && !reduite)
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        20,
-                        dense ? 8 : 12,
-                        20,
-                        dense ? 3 : 6,
-                      ),
-                      child: Text(
-                        entry.key.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: dense ? 9.5 : 10,
-                          letterSpacing: 0.8,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  for (final e in entry.value)
-                    _SidebarItem(
-                      entree: e,
-                      reduite: reduite,
-                      dense: dense,
-                      selectionne:
-                          e.path == location ||
-                          (e.path != '/' && location.startsWith(e.path)),
-                    ),
-                ],
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final hauteurDisponible = constraints.maxHeight.isFinite
+                    ? constraints.maxHeight
+                    : 0.0;
+                final hauteurListe = hauteurDisponible > 0
+                    ? (hauteurDisponible - (dense ? 72.0 : 100.0))
+                    : 0.0;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  height: hauteurListe.clamp(0.0, double.infinity),
+                  child: ListView(
+                    padding: EdgeInsets.symmetric(vertical: dense ? 2 : 6),
+                    children: [
+                      for (final entry in groupes.entries) ...[
+                        if (entry.key.isNotEmpty && !reduite)
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              20,
+                              dense ? 5 : 10,
+                              20,
+                              dense ? 2 : 4,
+                            ),
+                            child: Text(
+                              entry.key.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: dense ? 8.8 : 10,
+                                letterSpacing: 0.7,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        for (final e in entry.value)
+                          _SidebarItem(
+                            entree: e,
+                            reduite: reduite,
+                            dense: dense,
+                            selectionne:
+                                e.path == location ||
+                                (e.path != '/' && location.startsWith(e.path)),
+                          ),
+                      ],
+                    ],
+                  ),
+                );
+              },
             ),
           ),
           const Divider(height: 1),
-          // Pied utilisateur compact : la liste des rubriques ci-dessus garde
-          // toujours l'essentiel de la hauteur, quelle que soit la taille de
-          // la fenêtre.
-          _PiedUtilisateur(reduite: reduite),
+          SizedBox(
+            width: double.infinity,
+            child: reduite
+                ? const _PiedUtilisateur(reduite: true)
+                : _PiedUtilisateur(reduite: false, dense: dense),
+          ),
         ],
       ),
     );
@@ -466,8 +538,9 @@ class _Sidebar extends ConsumerWidget {
 /// déconnexion. Version compacte : hauteur fixe réduite pour que le menu
 /// reste toujours entièrement visible.
 class _PiedUtilisateur extends ConsumerWidget {
-  const _PiedUtilisateur({required this.reduite});
+  const _PiedUtilisateur({required this.reduite, this.dense = false});
   final bool reduite;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -480,14 +553,15 @@ class _PiedUtilisateur extends ConsumerWidget {
     final role = RoleUtilisateur.depuisCode(utilisateur?.role).libelle;
 
     Future<void> basculerTheme() async {
-      final nouveau =
-          mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+      final nouveau = mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
       ref.read(themeModeProvider.notifier).state = nouveau;
       try {
-        await ref.read(parametresRepositoryProvider).ecrire(
-          ReglagesAffichage.cleTheme,
-          ReglagesAffichage.themeVersTexte(nouveau),
-        );
+        await ref
+            .read(parametresRepositoryProvider)
+            .ecrire(
+              ReglagesAffichage.cleTheme,
+              ReglagesAffichage.themeVersTexte(nouveau),
+            );
       } catch (_) {
         // Le basculement visuel reste prioritaire sur la persistance.
       }
@@ -562,6 +636,8 @@ class _PiedUtilisateur extends ConsumerWidget {
       _fermerApplication();
     }
 
+    final compact = dense || reduite;
+
     if (reduite) {
       return Padding(
         key: const ValueKey('pied-utilisateur'),
@@ -611,14 +687,17 @@ class _PiedUtilisateur extends ConsumerWidget {
 
     return Padding(
       key: const ValueKey('pied-utilisateur'),
-      padding: const EdgeInsets.fromLTRB(12, 8, 6, 10),
+      padding: EdgeInsets.fromLTRB(12, compact ? 6 : 8, 6, compact ? 8 : 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              AvatarUtilisateur(utilisateur: utilisateur, rayon: 17),
+              AvatarUtilisateur(
+                utilisateur: utilisateur,
+                rayon: compact ? 15 : 17,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -631,7 +710,7 @@ class _PiedUtilisateur extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        fontSize: 13.5,
+                        fontSize: compact ? 12.5 : 13.5,
                         color: scheme.onSurface,
                       ),
                     ),
@@ -640,19 +719,23 @@ class _PiedUtilisateur extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: compact ? 10.5 : 11,
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
-              Tooltip(
-                message: 'Mon profil',
-                child: IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.account_circle_outlined, size: 20),
-                  onPressed: () => context.go(AppRoutes.profil),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 28),
+                child: Tooltip(
+                  message: 'Mon profil',
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.account_circle_outlined, size: 20),
+                    onPressed: () => context.go(AppRoutes.profil),
+                  ),
                 ),
               ),
             ],
@@ -661,30 +744,42 @@ class _PiedUtilisateur extends ConsumerWidget {
           Row(
             children: [
               Expanded(child: _Horloge(compact: true)),
-              IconButton(
-                tooltip: 'Thème clair / sombre',
-                visualDensity: VisualDensity.compact,
-                iconSize: 20,
-                icon: Icon(
-                  mode == ThemeMode.dark
-                      ? Icons.light_mode_outlined
-                      : Icons.dark_mode_outlined,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 28),
+                child: IconButton(
+                  tooltip: 'Thème clair / sombre',
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 20,
+                  icon: Icon(
+                    mode == ThemeMode.dark
+                        ? Icons.light_mode_outlined
+                        : Icons.dark_mode_outlined,
+                  ),
+                  onPressed: basculerTheme,
                 ),
-                onPressed: basculerTheme,
               ),
-              IconButton(
-                tooltip: 'Se déconnecter',
-                visualDensity: VisualDensity.compact,
-                iconSize: 20,
-                icon: const Icon(Icons.logout_outlined),
-                onPressed: deconnecter,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 28),
+                child: IconButton(
+                  tooltip: 'Se déconnecter',
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 20,
+                  icon: const Icon(Icons.logout_outlined),
+                  onPressed: deconnecter,
+                ),
               ),
-              IconButton(
-                tooltip: 'Quitter l\'application',
-                visualDensity: VisualDensity.compact,
-                iconSize: 20,
-                icon: const Icon(Icons.power_settings_new),
-                onPressed: fermer,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 28),
+                child: IconButton(
+                  tooltip: 'Quitter l\'application',
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 20,
+                  icon: const Icon(Icons.power_settings_new),
+                  onPressed: fermer,
+                ),
               ),
             ],
           ),
@@ -851,7 +946,7 @@ class _SidebarItem extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: reduite ? 0 : 12,
-              vertical: dense ? 7 : 11,
+              vertical: dense ? 5 : 9,
             ),
             child: Row(
               mainAxisAlignment: reduite
@@ -893,13 +988,8 @@ class _SidebarItem extends StatelessWidget {
     );
 
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: dense ? 1 : 2,
-      ),
-      child: reduite
-          ? Tooltip(message: entree.label, child: contenu)
-          : contenu,
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: dense ? 1 : 2),
+      child: reduite ? Tooltip(message: entree.label, child: contenu) : contenu,
     );
   }
 }

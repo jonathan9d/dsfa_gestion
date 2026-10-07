@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -5,19 +7,53 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dsfa_gestion/data/database/database.dart';
+import 'package:dsfa_gestion/domain/regles_parametres.dart';
 import 'package:dsfa_gestion/presentation/providers/providers.dart';
 import 'package:dsfa_gestion/presentation/screens/dossier_pj/dossier_pj_screen.dart';
+import 'package:dsfa_gestion/presentation/screens/pieces_justificatives/checklist_pj_screen.dart';
 import 'package:dsfa_gestion/presentation/screens/pieces_justificatives/pieces_justificatives_screen.dart';
 
-/// Rendu réel du dossier PJ : aucun débordement (« écrasement ») sur les trois
-/// onglets, et le bas de la liste des pièces justificatives doit rester
-/// atteignable au défilement.
+/// Dossier PJ : **deux** onglets (présences & indemnités, pièces
+/// justificatives), aucun débordement à toutes les tailles de fenêtre, et la
+/// checklist affiche bien les pièces requises par rubrique.
 void main() {
   late AppDatabase db;
 
+  /// Matrice des PJ requises, réduite à deux rubriques, telle qu'elle sort de
+  /// `parametres.xlsx` (feuille `PARAMETRES`, section 5).
+  const regles = ReglesParametres(
+    tauxIndemnites: {'Taux Perdiem chef-lieu région': 200000},
+    matricePJ: [
+      ReglePJRequise(
+        rubrique: 'RESTAURATION',
+        sousRubrique: '',
+        piece: 'LOCATION DE SALLE EQUIPEE',
+        obligatoire: true,
+        regleDate: 'Avant activité',
+        typeControle: 'DATE',
+      ),
+      ReglePJRequise(
+        rubrique: 'RESTAURATION',
+        sousRubrique: '',
+        piece: 'BON DE COMMANDE',
+        obligatoire: true,
+        regleDate: 'Après date PV;Avant activité',
+        typeControle: 'DATE',
+      ),
+      ReglePJRequise(
+        rubrique: 'INDEMNITE',
+        sousRubrique: 'INDEMNITE CHAUFFEUR',
+        piece: 'FICHE DE PRESENCE',
+        obligatoire: true,
+        regleDate: 'Pendant activité',
+        typeControle: 'DATE',
+      ),
+    ],
+  );
+
   setUp(() async {
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    for (var i = 1; i <= 14; i++) {
+    for (var i = 1; i <= 4; i++) {
       await db
           .into(db.controlesPJ)
           .insert(
@@ -40,14 +76,51 @@ void main() {
           );
     }
     await db
+        .into(db.activites)
+        .insert(
+          ActivitesCompanion(
+            code: const drift.Value('PSN N°1'),
+            description: const drift.Value('Atelier de suivi'),
+            dateDebut: drift.Value(DateTime(2026, 9, 28)),
+            dateFin: drift.Value(DateTime(2026, 9, 30)),
+            district: const drift.Value('Antananarivo'),
+            statut: const drift.Value('En cours'),
+          ),
+        );
+    await db
         .into(db.lignesBudget)
         .insert(
           const LignesBudgetCompanion(
             activiteCode: drift.Value('PSN N°1'),
-            ligneBudgetaire: drift.Value(
-              'Indemnité des équipes centraux et régionaux',
-            ),
+            ligneBudgetaire: drift.Value('Location de salle équipée'),
+            typeBudget: drift.Value('Restauration'),
             montantAlloue: drift.Value(2000000),
+          ),
+        );
+    await db
+        .into(db.parametres)
+        .insertOnConflictUpdate(
+          ParametresCompanion.insert(
+            cle: 'regles_parametres',
+            valeur: drift.Value(jsonEncode(regles.toJson())),
+          ),
+        );
+    // L'onglet « Pièces justificatives » a besoin d'une activité choisie.
+    await db
+        .into(db.participants)
+        .insert(
+          const ParticipantsCompanion(
+            nom: drift.Value('Rakoto'),
+            prenom: drift.Value('Jean'),
+          ),
+        );
+    await db
+        .into(db.activiteParticipants)
+        .insert(
+          const ActiviteParticipantsCompanion(
+            activiteCode: drift.Value('PSN N°1'),
+            participantId: drift.Value(1),
+            role: drift.Value('Chauffeur'),
           ),
         );
   });
@@ -84,20 +157,19 @@ void main() {
     Size(800, 600),
     Size(700, 520),
   ]) {
-    testWidgets('dossier PJ : les 3 onglets tiennent @ ${taille.width}'
+    testWidgets('dossier PJ : les 2 onglets tiennent @ ${taille.width}'
         'x${taille.height} (${taille.width.toInt()})', (tester) async {
       await pomper(tester, taille, const DossierPjScreen());
       expect(tester.takeException(), isNull, reason: 'Onglet Présences');
 
-      for (final onglet in ['Indemnités', 'Pièces justificatives']) {
+      for (final onglet in [
+        'Pièces justificatives',
+        'Présences & indemnités',
+      ]) {
         await tester.tap(find.text(onglet));
         await stabiliser(tester);
         expect(tester.takeException(), isNull, reason: 'Onglet $onglet');
       }
-
-      // La barre d'outils de l'onglet PJ est bien rendue (elle est hors de la
-      // zone défilante, donc toujours construite).
-      expect(find.text('Nouveau contrôle'), findsOneWidget);
 
       // Démontage explicite puis purge du timer de fermeture des flux drift
       // (sinon le framework signale un timer en attente en fin de test).
@@ -107,8 +179,9 @@ void main() {
   }
 
   for (final taille in const [Size(1366, 768), Size(900, 620)]) {
-    testWidgets('écran PJ autonome @ ${taille.width}x${taille.height}',
-        (tester) async {
+    testWidgets('écran PJ autonome @ ${taille.width}x${taille.height}', (
+      tester,
+    ) async {
       await pomper(tester, taille, const PiecesJustificativesScreen());
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
@@ -116,37 +189,65 @@ void main() {
     });
   }
 
-  testWidgets('le bas de la liste des PJ est atteignable par défilement',
-      (tester) async {
-    await pomper(tester, const Size(1366, 768), const DossierPjScreen());
-    await tester.tap(find.text('Pièces justificatives'));
-    await stabiliser(tester);
-
-    expect(
-      find.textContaining('Bénéficiaire 14'),
-      findsNothing,
-      reason: 'La liste défile : le dernier dossier est hors écran.',
-    );
-
-    // Plusieurs glissements successifs : sur une liste paresseuse, un seul
-    // glissement très long peut s'arrêter avant la fin.
-    for (var i = 0; i < 12; i++) {
-      await tester.drag(
-        find.byType(ListView).first,
-        const Offset(0, -600),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-    }
-    await stabiliser(tester);
-
-    expect(
-      find.textContaining('Bénéficiaire 14'),
-      findsAtLeastNWidgets(1),
-      reason: 'Après défilement, le dernier dossier doit être visible.',
-    );
+  testWidgets('l’onglet PJ n’affiche que la checklist des pièces requises', (
+    tester,
+  ) async {
+    await pomper(tester, const Size(1366, 768), const ChecklistPJScreen());
     expect(tester.takeException(), isNull);
+
+    // Aucun des blocs de l'ancien écran de contrôle ne subsiste.
+    expect(find.text('Nouveau contrôle'), findsNothing);
+    expect(find.byType(DropdownButtonFormField<String?>), findsNothing);
+    expect(find.textContaining('Bénéficiaire'), findsNothing);
+    expect(find.textContaining('Conformité'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
     await stabiliser(tester);
   });
+
+  testWidgets('la checklist regroupe les pièces par rubrique des paramètres', (
+    tester,
+  ) async {
+    await pomper(tester, const Size(1600, 900), const ChecklistPJScreen());
+    await estabiliserActivite(tester);
+
+    expect(find.text('RESTAURATION'), findsWidgets);
+    expect(find.textContaining('BON DE COMMANDE'), findsWidgets);
+    expect(
+      find.textContaining('Vérifier les dates selon les règles'),
+      findsWidgets,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    await stabiliser(tester);
+  });
+
+  testWidgets('les jours d’activité d’un participant sont modifiables', (
+    tester,
+  ) async {
+    await pomper(tester, const Size(1600, 900), const DossierPjScreen());
+    await estabiliserActivite(tester);
+
+    // Une ligne par participant affecté.
+    expect(find.text('Rakoto Jean'), findsWidgets);
+    expect(find.textContaining('Jours d’activité'), findsWidgets);
+
+    await tester.pumpWidget(const SizedBox());
+    await stabiliser(tester);
+  });
+}
+
+/// Choisit l'activité « PSN N°1 » dans la liste déroulante de l'écran affiché.
+Future<void> estabiliserActivite(WidgetTester tester) async {
+  final liste = find.byType(DropdownButtonFormField<String>);
+  if (liste.evaluate().isEmpty) return;
+  await tester.tap(liste.first);
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(const Duration(milliseconds: 120));
+  }
+  final choix = find.textContaining('PSN N°1').last;
+  await tester.tap(choix, warnIfMissed: false);
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 120));
+  }
 }

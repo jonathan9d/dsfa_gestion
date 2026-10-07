@@ -304,9 +304,11 @@ class _ParticipantDialogState extends ConsumerState<_ParticipantDialog> {
                   ),
                   ChampListe(
                     controller: _prenom,
-                    label: 'Prénom',
+                    label: 'Prénom *',
                     valeurs: _valeurs((p) => p.prenom),
                     prefixIcon: Icons.badge_outlined,
+                    validator: (v) =>
+                        validateurObligatoire(v, champ: 'Le prénom'),
                   ),
                 ),
                 const SizedBox(height: 12),

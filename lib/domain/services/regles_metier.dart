@@ -188,7 +188,7 @@ class ReglesMetier {
     final d = DateTime(datePJ.year, datePJ.month, datePJ.day);
     final debut = DateTime(dateDebut.year, dateDebut.month, dateDebut.day);
     final fin = DateTime(dateFin.year, dateFin.month, dateFin.day);
-    return !d.isBefore(debut) && !fin.isAfter(d);
+    return !d.isBefore(debut) && !d.isAfter(fin);
   }
 
   /// `Contrôle présence/indemnité` (CONTROLE_PJ!T).

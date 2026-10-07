@@ -427,6 +427,22 @@ class _OperationDialogState extends ConsumerState<_OperationDialog> {
       notifier(context, 'La date est obligatoire', erreur: true);
       return;
     }
+    // Une opération bancaire doit mouvoir un montant : sans recette ni
+    // dépense, elle n'a aucun effet sur le journal.
+    final recettes = double.tryParse(_recettes.text.replaceAll(',', '.')) ?? 0;
+    final depenses = double.tryParse(_depenses.text.replaceAll(',', '.')) ?? 0;
+    if (recettes == 0 && depenses == 0) {
+      notifier(
+        context,
+        'Renseignez un montant en recette ou en dépense.',
+        erreur: true,
+      );
+      return;
+    }
+    if (_description.text.trim().isEmpty) {
+      notifier(context, 'La description est obligatoire.', erreur: true);
+      return;
+    }
     final repo = ref.read(banqueRepositoryProvider);
     final companion = BanqueOperationsCompanion(
       date: drift.Value(_date!),

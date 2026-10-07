@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:excel/excel.dart';
 
+import '../data/database/database.dart';
 import '../data/repositories/activite_repository.dart';
 import '../data/repositories/finance_repository.dart';
 import '../data/repositories/participant_repository.dart';
 import '../data/repositories/presence_repository.dart';
+import '../domain/rubriques.dart';
 import '../domain/services/controle_pj_service.dart';
 import '../domain/services/rapport_financier_service.dart';
 import '../domain/services/presence_indemnite_service.dart';
@@ -176,34 +179,122 @@ class ExcelExportService {
     return excel.encode() ?? <int>[];
   }
 
-  /// Récapitulatif automatique du budget par ligne budgétaire.
+  /// Récapitulatif automatique du budget : **par rubrique**, puis par ligne
+  /// budgétaire à l'intérieur de chaque rubrique, avec le **total par
+  /// rubrique**. Le regroupement suit exactement celui de la pré-impression.
   Future<void> _feuilleRecapBudget(Excel excel) async {
     final sheet = excel['Récap budget'];
     _entetes(sheet, [
+      'Rubrique',
       'Ligne budgétaire',
       'Nombre de lignes',
+      'Budget prévisionnel (Ar)',
       'Montant alloué (Ar)',
     ]);
     final lignes = await _lignesBudget.getAll();
-    final parLigne = <String, (int, double)>{};
-    for (final l in lignes) {
-      final courant = parLigne[l.ligneBudgetaire] ?? (0, 0.0);
-      parLigne[l.ligneBudgetaire] =
-          (courant.$1 + 1, courant.$2 + l.montantAlloue);
-    }
-    var total = 0.0;
-    final entrees = parLigne.entries.toList()
-      ..sort((a, b) => b.value.$2.compareTo(a.value.$2));
-    for (final e in entrees) {
-      total += e.value.$2;
+    final rubriquesConnues = _rubriquesDesLignes(lignes);
+    final groupes = _grouperParRubrique(lignes, rubriquesConnues);
+
+    var totalPrevisionnel = 0.0;
+    var totalAlloue = 0.0;
+    var lignesTotal = 0;
+    for (final groupe in groupes) {
+      var sousPrevisionnel = 0.0;
+      var sousAlloue = 0.0;
+      var sousLignes = 0;
+      for (final l in groupe.lignes) {
+        final previsionnel = _nombre(
+          _details(l.details)['montantPrevisionnel'],
+          fallback: l.montantAlloue,
+        );
+        sousPrevisionnel += previsionnel;
+        sousAlloue += l.montantAlloue;
+        sousLignes++;
+        sheet.appendRow([
+          TextCellValue(groupe.rubrique),
+          TextCellValue(_normaliserLigne(l.ligneBudgetaire)),
+          IntCellValue(1),
+          DoubleCellValue(previsionnel),
+          DoubleCellValue(l.montantAlloue),
+        ]);
+      }
       sheet.appendRow([
-        TextCellValue(e.key),
-        IntCellValue(e.value.$1),
-        DoubleCellValue(e.value.$2),
+        TextCellValue('TOTAL — ${groupe.rubrique}'),
+        TextCellValue(''),
+        IntCellValue(sousLignes),
+        DoubleCellValue(sousPrevisionnel),
+        DoubleCellValue(sousAlloue),
       ]);
+      _styliserDerniereLigne(sheet);
+      totalPrevisionnel += sousPrevisionnel;
+      totalAlloue += sousAlloue;
+      lignesTotal += sousLignes;
     }
-    _ligneTotal(sheet, 'TOTAL GÉNÉRAL', 2, total);
+    sheet.appendRow([
+      TextCellValue('TOTAL GÉNÉRAL'),
+      TextCellValue(''),
+      IntCellValue(lignesTotal),
+      DoubleCellValue(totalPrevisionnel),
+      DoubleCellValue(totalAlloue),
+    ]);
+    _styliserDerniereLigne(sheet);
     _ajuster(sheet);
+  }
+
+  /// Rubriques connues, déduites de ce qui est enregistré sur les lignes (et
+  /// donc des paramètres) : les lignes sans rubrique sont rattachées par
+  /// mots-clés, jamais laissées « libres ».
+  List<String> _rubriquesDesLignes(List<LigneBudget> lignes) {
+    final vues = <String>[];
+    for (final l in lignes) {
+      final brute = '${_details(l.details)['rubrique'] ?? ''}'.trim();
+      if (brute.isEmpty) continue;
+      if (vues.any(
+        (v) =>
+            RubriquesBudget.normaliser(v) == RubriquesBudget.normaliser(brute),
+      )) {
+        continue;
+      }
+      vues.add(brute);
+    }
+    return vues;
+  }
+
+  String _rubrique(LigneBudget l, List<String> rubriques) =>
+      RubriquesBudget.resoudre(
+        ligneBudgetaire: l.ligneBudgetaire,
+        typeBudget: l.typeBudget,
+        rubriqueEnregistree: '${_details(l.details)['rubrique'] ?? ''}',
+        rubriques: rubriques,
+      );
+
+  /// Regroupe les lignes par rubrique (ordre alphabétique) et trie les lignes
+  /// à l'intérieur d'un groupe.
+  List<_GroupeRubrique> _grouperParRubrique(
+    List<LigneBudget> lignes,
+    List<String> rubriques,
+  ) {
+    final parRubrique = <String, List<LigneBudget>>{};
+    for (final l in lignes) {
+      parRubrique.putIfAbsent(_rubrique(l, rubriques), () => []).add(l);
+    }
+    final cles = parRubrique.keys.toList()
+      ..sort(
+        (a, b) => RubriquesBudget.normaliser(
+          a,
+        ).compareTo(RubriquesBudget.normaliser(b)),
+      );
+    return [
+      for (final cle in cles)
+        _GroupeRubrique(
+          cle,
+          parRubrique[cle]!..sort(
+            (a, b) => a.ligneBudgetaire.toLowerCase().compareTo(
+              b.ligneBudgetaire.toLowerCase(),
+            ),
+          ),
+        ),
+    ];
   }
 
   Future<void> sauvegarder(List<int> bytes, String chemin) async {
@@ -219,38 +310,32 @@ class ExcelExportService {
     _entetes(sheet, [
       'Code',
       'Description',
-      'Type',
       'Code budget',
       'Source de financement',
       'Année',
       'Période',
       'Date début',
       'Date fin',
-      'Lieu',
-      'District',
+      'Lieu d’activité',
       'Responsable',
       'Nombre de jours',
       'Nombre participants',
-      'Statut',
     ]);
     final activites = await _activites.getAll();
     for (final a in activites) {
       sheet.appendRow([
         TextCellValue(a.code),
         TextCellValue(a.description),
-        TextCellValue(a.type),
         TextCellValue(a.codeBudget ?? ''),
         TextCellValue(a.sourceFinancement ?? ''),
         IntCellValue(a.annee ?? 0),
         TextCellValue(a.periode ?? ''),
         _dateCell(a.dateDebut),
         _dateCell(a.dateFin),
-        TextCellValue(a.lieu ?? ''),
         TextCellValue(a.district ?? ''),
         TextCellValue(a.responsable ?? ''),
         IntCellValue(a.nombreJours),
         IntCellValue(a.nombreParticipants),
-        TextCellValue(a.statut),
       ]);
     }
     _ajuster(sheet);
@@ -260,33 +345,100 @@ class ExcelExportService {
     final sheet = excel['Budgets'];
     _entetes(sheet, [
       'Code activité',
+      'Rubrique',
       'Ligne budgétaire',
-      'Type de budget',
       'Unité',
       'Quantité prévue',
-      'Nombre de jour',
+      'Nombre / fréquence',
       'Taux unitaire (Ar)',
+      'Budget prévisionnel (Ar)',
       'Montant alloué (Ar)',
       'Observation',
     ]);
     final lignes = await _lignesBudget.getAll();
-    var total = 0.0;
-    for (final l in lignes) {
-      total += l.montantAlloue;
+    final rubriquesConnues = _rubriquesDesLignes(lignes);
+    final groupes = _grouperParRubrique(lignes, rubriquesConnues);
+    var totalPrevisionnel = 0.0;
+    var totalAlloue = 0.0;
+    // Une rubrique = un bloc : ses lignes, puis son **sous-total**.
+    for (final groupe in groupes) {
+      var sousPrevisionnel = 0.0;
+      var sousAlloue = 0.0;
+      for (final l in groupe.lignes) {
+        final details = _details(l.details);
+        final previsionnel = _nombre(
+          details['montantPrevisionnel'],
+          fallback: l.montantAlloue,
+        );
+        sousPrevisionnel += previsionnel;
+        sousAlloue += l.montantAlloue;
+        sheet.appendRow([
+          TextCellValue(l.activiteCode),
+          TextCellValue(groupe.rubrique),
+          TextCellValue(_normaliserLigne(l.ligneBudgetaire)),
+          TextCellValue(l.unite),
+          DoubleCellValue(l.quantitePrevue),
+          DoubleCellValue(l.nombreJours),
+          DoubleCellValue(l.tauxUnitaire),
+          DoubleCellValue(previsionnel),
+          DoubleCellValue(l.montantAlloue),
+          TextCellValue(l.observation ?? ''),
+        ]);
+      }
       sheet.appendRow([
-        TextCellValue(l.activiteCode),
-        TextCellValue(l.ligneBudgetaire),
-        TextCellValue(l.typeBudget),
-        TextCellValue(l.unite),
-        DoubleCellValue(l.quantitePrevue),
-        DoubleCellValue(l.nombreJours),
-        DoubleCellValue(l.tauxUnitaire),
-        DoubleCellValue(l.montantAlloue),
-        TextCellValue(l.observation ?? ''),
+        TextCellValue('TOTAL — ${groupe.rubrique}'),
+        TextCellValue(''),
+        TextCellValue(''),
+        TextCellValue(''),
+        TextCellValue(''),
+        TextCellValue(''),
+        TextCellValue(''),
+        DoubleCellValue(sousPrevisionnel),
+        DoubleCellValue(sousAlloue),
+        TextCellValue(''),
       ]);
+      _styliserDerniereLigne(sheet);
+      totalPrevisionnel += sousPrevisionnel;
+      totalAlloue += sousAlloue;
     }
-    _ligneTotal(sheet, 'TOTAL ALLOUÉ', 6, total);
+    sheet.appendRow([
+      TextCellValue('TOTAL GÉNÉRAL'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      DoubleCellValue(totalPrevisionnel),
+      DoubleCellValue(totalAlloue),
+      TextCellValue(''),
+    ]);
+    _styliserDerniereLigne(sheet);
     _ajuster(sheet);
+  }
+
+  Map<String, dynamic> _details(String? brut) {
+    if (brut == null || brut.trim().isEmpty) return <String, dynamic>{};
+    try {
+      return (jsonDecode(brut) as Map).cast<String, dynamic>();
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  double _nombre(Object? value, {double fallback = 0}) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('$value'.replaceAll(',', '.')) ?? fallback;
+  }
+
+  /// Renomme les libellés du classeur pour rester lisibles dans l'export.
+  String _normaliserLigne(String ligne) {
+    final u = ligne.toUpperCase();
+    if (u.contains('DEPLACEMENT PAR AVION') ||
+        u.contains('DÉPLACEMENT PAR AVION')) {
+      return 'Billet d’avion';
+    }
+    return ligne;
   }
 
   Future<void> _feuilleParticipants(Excel excel) async {
@@ -605,10 +757,7 @@ class ExcelExportService {
       TextCellValue(DateTime.now().toIso8601String().substring(0, 19)),
     ]);
     sheet.appendRow([TextCellValue('')]);
-    sheet.appendRow([
-      TextCellValue('Indicateur'),
-      TextCellValue('Valeur'),
-    ]);
+    sheet.appendRow([TextCellValue('Indicateur'), TextCellValue('Valeur')]);
     for (final l in <List<CellValue>>[
       [TextCellValue('Activités'), IntCellValue(activites.length)],
       [TextCellValue('Participants'), IntCellValue(participants.length)],
@@ -651,7 +800,12 @@ class ExcelExportService {
   }
 
   /// Ajoute une ligne de total « libellé + montant » et la met en valeur.
-  void _ligneTotal(Sheet sheet, String libelle, int colonneMontant, double valeur) {
+  void _ligneTotal(
+    Sheet sheet,
+    String libelle,
+    int colonneMontant,
+    double valeur,
+  ) {
     final cellule = List<CellValue>.generate(
       colonneMontant + 1,
       (i) => TextCellValue(''),
@@ -690,4 +844,12 @@ class ExcelExportService {
     if (d == null) return TextCellValue('');
     return DateCellValue(year: d.year, month: d.month, day: d.day);
   }
+}
+
+/// Un bloc de lignes budgétaires partageant la même rubrique : sert au
+/// regroupement cohérent de la pré-impression et des exports.
+class _GroupeRubrique {
+  _GroupeRubrique(this.rubrique, this.lignes);
+  final String rubrique;
+  final List<LigneBudget> lignes;
 }

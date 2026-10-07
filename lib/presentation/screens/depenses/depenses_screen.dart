@@ -642,30 +642,46 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                         controller: _nbJrMois,
                         label: 'Nbr jr/mois',
                         onChanged: () => setState(() {}),
+                        validator: (v) => validateurNombrePositif(
+                          v,
+                          champ: 'Le nombre de jours',
+                          obligatoire: false,
+                          zeroAutorise: true,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: ChampNombre(
                         controller: _quantite,
-                        label: 'Quantité',
+                        label: 'Quantité *',
                         onChanged: () => setState(() {}),
+                        validator: (v) => validateurNombrePositif(
+                          v,
+                          champ: 'La quantité',
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: ChampNombre(
                         controller: _frequence,
-                        label: 'Fréquence',
+                        label: 'Fréquence *',
                         onChanged: () => setState(() {}),
+                        validator: (v) => validateurNombrePositif(
+                          v,
+                          champ: 'La fréquence',
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: ChampNombre(
                         controller: _pu,
-                        label: 'P.U. (Ar)',
+                        label: 'P.U. (Ar) *',
                         onChanged: () => setState(() {}),
+                        validator: (v) =>
+                            validateurNombrePositif(v, champ: 'Le P.U.'),
                       ),
                     ),
                   ],
@@ -696,6 +712,12 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                   label: 'Observation',
                   valeurs: observations,
                   prefixIcon: Icons.notes_outlined,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tous les champs marqués * sont vérifiés avant '
+                  'l’enregistrement.',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),

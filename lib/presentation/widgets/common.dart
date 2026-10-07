@@ -13,8 +13,7 @@ const logoDsfaRose = 'assets/logo_dsfa2.jpeg';
 String formatMontant(num? valeur) =>
     valeur == null ? '—' : '${_fmtMontant.format(valeur)} Ar';
 
-String formatDate(DateTime? date) =>
-    date == null ? '—' : _fmtDate.format(date);
+String formatDate(DateTime? date) => date == null ? '—' : _fmtDate.format(date);
 
 /// Couleurs sémantiques de contrôle, **adaptées automatiquement** au thème
 /// (mode clair ou sombre) pour rester lisibles sans changer de sens.
@@ -40,10 +39,9 @@ Color _semantique(
   BuildContext context, {
   required Color clair,
   required Color sombre,
-}) =>
-    Theme.of(context).colorScheme.brightness == Brightness.dark
-        ? sombre
-        : clair;
+}) => Theme.of(context).colorScheme.brightness == Brightness.dark
+    ? sombre
+    : clair;
 
 /// Largeur de contenu d'un dialogue, bornée à l'écran de l'appareil.
 ///
@@ -61,12 +59,7 @@ double largeurDialogue(BuildContext context, double max) {
 /// exactement comme un clic en dehors du dialogue ou la touche `Échap`.
 /// On peut ainsi revenir en arrière sans chercher l'action « Annuler ».
 class TitreDialogue extends StatelessWidget {
-  const TitreDialogue(
-    this.titre, {
-    this.sousTitre,
-    this.icone,
-    super.key,
-  });
+  const TitreDialogue(this.titre, {this.sousTitre, this.icone, super.key});
 
   final String titre;
   final String? sousTitre;
@@ -121,9 +114,7 @@ class TitreDialogue extends StatelessWidget {
           onPressed: () => Navigator.of(context).maybePop(),
           icon: const Icon(Icons.close, size: 20),
           visualDensity: VisualDensity.compact,
-          style: IconButton.styleFrom(
-            foregroundColor: scheme.onSurfaceVariant,
-          ),
+          style: IconButton.styleFrom(foregroundColor: scheme.onSurfaceVariant),
         ),
       ],
     );
@@ -164,19 +155,24 @@ class EnTetePage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(titre, style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      // Charte DSFa : titres / en-têtes en rose institutionnel.
-                      color: theme.colorScheme.primary,
-                    )),
+                Text(
+                  titre,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    // Charte DSFa : titres / en-têtes en rose institutionnel.
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
                 if (sousTitre != null) ...[
                   const SizedBox(height: 4),
-                  Text(sousTitre!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        // Charte DSFa : sous-titres en violet.
-                        color: theme.colorScheme.secondary,
-                        fontWeight: FontWeight.w500,
-                      )),
+                  Text(
+                    sousTitre!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      // Charte DSFa : sous-titres en violet.
+                      color: theme.colorScheme.secondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -217,9 +213,12 @@ class CarteSection extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(titre!,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    child: Text(
+                      titre!,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                   ...actions,
                 ],
@@ -346,22 +345,31 @@ class CarteIndicateur extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Text(titre,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            Text(
+              titre,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: Text(valeur,
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              child: Text(
+                valeur,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             if (sousTitre != null) ...[
               const SizedBox(height: 2),
-              Text(sousTitre!,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              Text(
+                sousTitre!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ],
           ],
         ),
@@ -383,7 +391,9 @@ class PastilleStatut extends StatelessWidget {
     final couleur = statut.color(scheme);
     return Container(
       padding: EdgeInsets.symmetric(
-          horizontal: compact ? 8 : 10, vertical: compact ? 3 : 5),
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 3 : 5,
+      ),
       decoration: BoxDecoration(
         color: couleur.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
@@ -544,48 +554,70 @@ class EtatVide extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icone,
-                  size: 34,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.8),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (titre != null) ...[
-                Text(
-                  titre!,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+    // L'état vide s'adapte aux fenêtres basses : sur une zone réduite (petit
+    // écran, volet replié), le bloc se resserre puis devient défilant au lieu
+    // de déborder — rien n'est jamais coupé.
+    return LayoutBuilder(
+      builder: (context, contraintes) {
+        final basse =
+            contraintes.maxHeight.isFinite && contraintes.maxHeight < 260;
+        final corps = Padding(
+          padding: EdgeInsets.all(basse ? 14 : 32),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(basse ? 8 : 16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icone,
+                    size: basse ? 22 : 34,
+                    color: theme.colorScheme.primary.withValues(alpha: 0.8),
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: basse ? 8 : 16),
+                if (titre != null) ...[
+                  Text(
+                    titre!,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: basse ? 12.5 : null,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (action != null) ...[
+                  SizedBox(height: basse ? 10 : 18),
+                  action!,
+                ],
               ],
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              ),
-              if (action != null) ...[const SizedBox(height: 18), action!],
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: contraintes.maxHeight.isFinite
+                  ? contraintes.maxHeight
+                  : 0,
+            ),
+            child: Center(child: corps),
+          ),
+        );
+      },
     );
   }
 }
@@ -600,7 +632,8 @@ String messageErreurLisible(Object erreur) {
       minuscule.contains('network')) {
     return 'La connexion a échoué. Vérifiez votre réseau puis réessayez.';
   }
-  if (minuscule.contains('permission') || minuscule.contains('access is denied')) {
+  if (minuscule.contains('permission') ||
+      minuscule.contains('access is denied')) {
     return 'Accès refusé : l\'application n\'a pas la permission '
         'd\'effectuer cette opération.';
   }
@@ -714,7 +747,8 @@ Future<bool> confirmer(
         FilledButton(
           style: destructif
               ? FilledButton.styleFrom(
-                  backgroundColor: Theme.of(ctx).colorScheme.error)
+                  backgroundColor: Theme.of(ctx).colorScheme.error,
+                )
               : null,
           onPressed: () => Navigator.of(ctx).pop(true),
           child: Text(confirmerLabel),
@@ -746,7 +780,9 @@ void notifier(BuildContext context, String message, {bool erreur = false}) {
               child: Text(
                 message,
                 style: TextStyle(
-                  color: erreur ? Colors.white : theme.colorScheme.onInverseSurface,
+                  color: erreur
+                      ? Colors.white
+                      : theme.colorScheme.onInverseSurface,
                 ),
               ),
             ),
@@ -754,7 +790,8 @@ void notifier(BuildContext context, String message, {bool erreur = false}) {
               IconButton(
                 tooltip: 'Fermer',
                 icon: const Icon(Icons.close, size: 18, color: Colors.white),
-                onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+                onPressed: () =>
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar(),
               ),
           ],
         ),
@@ -779,6 +816,53 @@ String? validateurMontant(String? valeur, {bool obligatoire = false}) {
   final n = double.tryParse(valeur.replaceAll(' ', '').replaceAll(',', '.'));
   if (n == null) return 'Montant invalide';
   if (n < 0) return 'Le montant doit être positif';
+  return null;
+}
+
+/// Vérifie qu'une valeur est **choisie dans une liste de référence** (celle des
+/// paramètres) : aucune rubrique, unité ou type ne peut être saisi librement.
+String? validateurReference(
+  String? valeur,
+  List<String> valeurs, {
+  String champ = 'Ce champ',
+  bool obligatoire = true,
+}) {
+  final manquant = validateurObligatoire(valeur, champ: champ);
+  if (manquant != null) return obligatoire ? manquant : null;
+  final v = valeur!.trim().toLowerCase();
+  if (valeurs.any((e) => e.trim().toLowerCase() == v)) return null;
+  if (valeurs.isEmpty) return null;
+  return '$champ doit être choisi dans les paramètres';
+}
+
+/// Vérifie une **année** : quatre chiffres, comprise entre 2000 et 2100.
+String? validateurAnnee(String? valeur, {String champ = 'L’année'}) {
+  final manquant = validateurObligatoire(valeur, champ: champ);
+  if (manquant != null) return manquant;
+  final n = int.tryParse(valeur!.trim());
+  if (n == null) return '$champ : nombre entier attendu';
+  if (n < 2000 || n > 2100)
+    return '$champ doit être comprise entre 2000 et 2100';
+  return null;
+}
+
+/// Vérifie qu'un champ numérique est un nombre **strictement positif**
+/// (quantité, jours, taux, prix unitaire…).
+String? validateurNombrePositif(
+  String? valeur, {
+  String champ = 'Ce champ',
+  bool obligatoire = true,
+  bool zeroAutorise = false,
+}) {
+  if (valeur == null || valeur.trim().isEmpty) {
+    return obligatoire ? '$champ est obligatoire' : null;
+  }
+  final n = double.tryParse(
+    valeur.trim().replaceAll(' ', '').replaceAll(',', '.'),
+  );
+  if (n == null) return '$champ : nombre attendu';
+  if (n < 0) return '$champ doit être positif';
+  if (n == 0 && !zeroAutorise) return '$champ doit être supérieur à 0';
   return null;
 }
 
@@ -845,8 +929,9 @@ class BarreOngletsAnimee extends StatelessWidget {
                               onTap: () => controller.animateTo(i),
                               child: Center(
                                 child: Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                  ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -998,8 +1083,11 @@ class ChampListe extends StatelessWidget {
                 height: 40,
                 child: Row(
                   children: [
-                    Icon(Icons.autorenew,
-                        size: 16, color: theme.colorScheme.primary),
+                    Icon(
+                      Icons.autorenew,
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       saisieAutoLabel,
@@ -1017,8 +1105,7 @@ class ChampListe extends StatelessWidget {
                 height: 40,
                 child: Row(
                   children: [
-                    Icon(Icons.add,
-                        size: 16, color: theme.colorScheme.primary),
+                    Icon(Icons.add, size: 16, color: theme.colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(
                       'Ajouter une nouvelle valeur…',
@@ -1064,9 +1151,7 @@ class ChampNombre extends StatelessWidget {
   void _ajuster(double delta) {
     final n = _valeur + delta;
     if (n < 0) return;
-    controller.text = decimales
-        ? n.toStringAsFixed(2)
-        : n.round().toString();
+    controller.text = decimales ? n.toStringAsFixed(2) : n.round().toString();
     controller.selection = TextSelection.collapsed(
       offset: controller.text.length,
     );
@@ -1075,11 +1160,7 @@ class ChampNombre extends StatelessWidget {
 
   Widget _fleche(IconData icone, VoidCallback onTap) => InkWell(
     onTap: onTap,
-    child: SizedBox(
-      height: 18,
-      width: 30,
-      child: Icon(icone, size: 18),
-    ),
+    child: SizedBox(height: 18, width: 30, child: Icon(icone, size: 18)),
   );
 
   @override

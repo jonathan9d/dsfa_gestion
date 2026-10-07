@@ -305,13 +305,12 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
         '|${scaler.scale(1.0)}|$texte';
     final connu = _mesures[cle];
     if (connu != null) return connu;
-    final peintre =
-        TextPainter(
-          text: TextSpan(text: texte, style: style),
-          textDirection: TextDirection.ltr,
-          textScaler: scaler,
-          maxLines: 1,
-        )..layout();
+    final peintre = TextPainter(
+      text: TextSpan(text: texte, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
     final largeur = peintre.width;
     peintre.dispose();
     if (_mesures.length > 4000) _mesures.clear();
@@ -319,23 +318,8 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
     return largeur;
   }
 
-  /// Les 3 textes les plus longs d'une colonne suffisent à en fixer la
-  /// largeur (le plus long couvrant toujours les autres).
-  List<String> _plusLongsTextes(ColonneTableau<T> colonne) {
-    final gardes = <String>[];
-    var compteur = 0;
-    for (final ligne in widget.lignes) {
-      final texte = colonne.valeur(ligne).trim();
-      if (texte.isEmpty) continue;
-      gardes.add(texte);
-      if (++compteur >= 1500) break;
-    }
-    gardes.sort((a, b) => b.length.compareTo(a.length));
-    return gardes.take(3).toList();
-  }
-
   /// Largeur *souhaitée* (px) de chaque colonne, calculée à l'avance :
-  /// en-tête + contenu le plus long + marges internes.
+  /// en-tête + valeur la plus large + marges internes.
   List<double> _largeursSouhaitees(TextScaler scaler) {
     final echelle = scaler.scale(1.0);
     if (_largeurs == null || echelle != _echelleMesuree) {
@@ -346,27 +330,30 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
     return _largeurs!;
   }
 
+  /// Largeur exacte nécessaire à chaque colonne : la mesure porte sur **toutes**
+  /// les valeurs affichées (mise en cache), afin qu'aucun mot, nombre ni date
+  /// ne soit coupé, même lorsque la valeur la plus large est aussi la plus
+  /// courte en caractères (chiffres larges, majuscules…).
   List<double> _calculerLargeurs(TextScaler scaler) {
     const styleEntete = TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
     const styleCellule = TextStyle(fontSize: 13);
-    const marge = 14.0;
+    const marge = 12.0;
     final resultat = <double>[];
     for (final colonne in widget.colonnes) {
-      var largeur =
-          _mesurer(colonne.label, styleEntete, scaler) +
-          marge +
-          (colonne.triable ? 20 : 0);
-      for (final texte in _plusLongsTextes(colonne)) {
-        largeur = math.max(
-          largeur,
-          _mesurer(texte, styleCellule, scaler) + marge,
-        );
+      var largeur = _mesurer(colonne.label, styleEntete, scaler) + marge;
+      var compteur = 0;
+      for (final ligne in widget.lignes) {
+        final texte = colonne.valeur(ligne).trim();
+        if (texte.isNotEmpty) {
+          final mesuree = _mesurer(texte, styleCellule, scaler) + marge;
+          if (mesuree > largeur) largeur = mesuree;
+        }
+        if (++compteur >= 3000) break;
       }
-      // Un rendu personnalisé (badge, interrupteur…) peut être plus large
-      // que son texte : on lui laisse un plancher confortable, sauf si la
-      // colonne déclare elle-même son plancher (`largeurMin`).
+      // Un rendu personnalisé (badge, bouton…) peut être plus large que son
+      // texte : plancher plus généreux, sauf plancher déclaré `largeurMin`.
       final plancher =
-          colonne.largeurMin ?? (colonne.cellule != null ? 110.0 : 72.0);
+          colonne.largeurMin ?? (colonne.cellule != null ? 150.0 : 58.0);
       resultat.add(math.max(largeur, plancher));
     }
     return resultat;
@@ -636,7 +623,8 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
           filtres: _afficherFiltres && widget.lignes.isNotEmpty,
           aDesLignes: aDesLignes,
         );
-        final modeRemplissage = contraintes.maxHeight.isFinite &&
+        final modeRemplissage =
+            contraintes.maxHeight.isFinite &&
             (modeCartes ||
                 widget.lignes.isEmpty ||
                 estimation + 48 > contraintes.maxHeight);
@@ -663,22 +651,14 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
                 child: ListView(
                   padding: const EdgeInsets.only(bottom: 4),
                   shrinkWrap: auto,
-                  physics: auto
-                      ? const NeverScrollableScrollPhysics()
-                      : null,
+                  physics: auto ? const NeverScrollableScrollPhysics() : null,
                   children: [
                     for (var i = 0; i < lignesPage.length; i++)
                       _carte(context, lignesPage[i], i),
                   ],
                 ),
               )
-            : _tableau(
-                context,
-                disposition!,
-                lignesPage,
-                filtrees,
-                auto: auto,
-              );
+            : _tableau(context, disposition!, lignesPage, filtrees, auto: auto);
 
         if (!modeCartes &&
             widget.lignes.isNotEmpty &&
@@ -688,7 +668,8 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
             width: disposition.largeurTotale,
             child: Scrollbar(
               controller: _defilementHorizontal,
-              thumbVisibility: true,
+              thumbVisibility: false,
+              interactive: true,
               child: SingleChildScrollView(
                 controller: _defilementHorizontal,
                 scrollDirection: Axis.horizontal,
@@ -728,9 +709,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
   BoxDecoration _cadre(BuildContext context) => BoxDecoration(
     color: Theme.of(context).colorScheme.surface,
     borderRadius: BorderRadius.circular(12),
-    border: Border.all(
-      color: Theme.of(context).colorScheme.outlineVariant,
-    ),
+    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
   );
 
   /// Estimation (volontairement pessimiste) de la hauteur du tableau :
@@ -748,8 +727,8 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
       // Fiches : hauteur très variable, estimation volontairement large.
       hauteur += lignes * 140;
     } else {
-      if (filtres) hauteur += 62 + 8;
-      hauteur += 44 /* en-tête */ + lignes * 46 + 4;
+      if (filtres) hauteur += 56 + 6;
+      hauteur += 38 /* en-tête */ + lignes * 38 + 2;
     }
     if (aDesLignes) {
       hauteur += 6 + 44; // pied (pagination)
@@ -796,10 +775,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
           _barreFiltres(context, disposition),
           const SizedBox(height: 8),
         ],
-        if (auto)
-          cadre
-        else
-          Expanded(child: cadre),
+        if (auto) cadre else Expanded(child: cadre),
       ],
     );
   }
@@ -819,8 +795,10 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
         primary: false,
         shrinkWrap: auto,
         physics: auto ? const NeverScrollableScrollPhysics() : null,
-        itemExtent: 46,
-        padding: const EdgeInsets.only(bottom: 4),
+        // Pas d'`itemExtent` : la hauteur de chaque ligne s'adapte à son
+        // contenu (une cellule sur deux lignes ne peut donc pas déborder),
+        // tout en restant compacte grâce au plancher de [_ligne].
+        padding: const EdgeInsets.only(bottom: 2),
         itemCount: lignesPage.length,
         itemBuilder: (context, index) {
           final ligne = lignesPage[index];
@@ -888,10 +866,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
                   _modeSelection = !_modeSelection;
                   if (!_modeSelection) _selection.clear();
                 }),
-          icon: Icon(
-            _modeSelection ? Icons.close : Icons.checklist,
-            size: 16,
-          ),
+          icon: Icon(_modeSelection ? Icons.close : Icons.checklist, size: 16),
           label: Text(
             _modeSelection ? 'Quitter la sélection' : 'Sélectionner',
             style: const TextStyle(fontSize: 12.5),
@@ -913,8 +888,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
             ),
           ),
         TextButton.icon(
-          onPressed: () =>
-              setState(() => _afficherFiltres = !_afficherFiltres),
+          onPressed: () => setState(() => _afficherFiltres = !_afficherFiltres),
           icon: Icon(
             _afficherFiltres ? Icons.filter_alt : Icons.filter_alt_outlined,
             size: 16,
@@ -942,7 +916,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
           ),
         ),
       ),
-      height: 44,
+      height: 38,
       child: Row(
         children: [
           if (_modeSelection)
@@ -951,10 +925,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
               child: _caseToutSelectionner(context, _lignesAffichees),
             ),
           for (var i = 0; i < widget.colonnes.length; i++)
-            SizedBox(
-              width: d.largeurs[i],
-              child: _enteteColonne(context, i),
-            ),
+            SizedBox(width: d.largeurs[i], child: _enteteColonne(context, i)),
           if (widget.actions.isNotEmpty)
             SizedBox(
               width: _largeurActions,
@@ -1006,7 +977,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
           child: Text(
             colonne.label,
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            softWrap: false,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -1014,25 +985,22 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
             ),
           ),
         ),
-        if (colonne.triable)
-          Icon(
-            !actif
-                ? Icons.unfold_more
-                : (_triAscendant ? Icons.arrow_upward : Icons.arrow_downward),
-            size: 14,
-            color: actif ? scheme.primary : scheme.onSurfaceVariant,
-          ),
+        // Aucun chevron ni flèche : le tri actif se signale uniquement par
+        // la couleur de l'en-tête (les « ^ / v » encombraient la ligne et
+        // étaient jugés inesthétiques). Le sens du tri reste indiqué dans
+        // l'infobulle de l'en-tête.
       ],
+    );
+    final alignement = Align(
+      alignment: colonne.numerique
+          ? Alignment.centerRight
+          : Alignment.centerLeft,
+      child: contenu,
     );
     if (!colonne.triable) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Align(
-          alignment: colonne.numerique
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
-          child: contenu,
-        ),
+        child: alignement,
       );
     }
     return InkWell(
@@ -1042,8 +1010,8 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
             'Trier par ${colonne.label.toLowerCase()}'
             '${actif ? (_triAscendant ? ' (décroissant)' : ' (aucun)') : ' (croissant)'}',
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-          child: contenu,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+          child: alignement,
         ),
       ),
     );
@@ -1142,56 +1110,62 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
           ),
         ),
       ),
-      child: Row(
-        children: [
-          if (_modeSelection)
-            SizedBox(
-              width: _largeurSelection,
-              child: Center(
-                child: Checkbox(
-                  visualDensity: VisualDensity.compact,
-                  value: _selection.contains(widget.cleLigne(ligne)),
-                  onChanged: (_) => _basculerSelection(ligne),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 36),
+        child: Row(
+          children: [
+            if (_modeSelection)
+              SizedBox(
+                width: _largeurSelection,
+                child: Center(
+                  child: Checkbox(
+                    visualDensity: VisualDensity.compact,
+                    value: _selection.contains(widget.cleLigne(ligne)),
+                    onChanged: (_) => _basculerSelection(ligne),
+                  ),
                 ),
               ),
-            ),
-          for (var i = 0; i < widget.colonnes.length; i++)
-            SizedBox(
-              width: d.largeurs[i],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                child: Align(
-                  alignment: widget.colonnes[i].numerique
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: _contenuCellule(context, widget.colonnes[i], ligne),
+            for (var i = 0; i < widget.colonnes.length; i++)
+              SizedBox(
+                width: d.largeurs[i],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 4,
+                  ),
+                  child: Align(
+                    alignment: widget.colonnes[i].numerique
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: _contenuCellule(context, widget.colonnes[i], ligne),
+                  ),
                 ),
               ),
-            ),
-          if (widget.actions.isNotEmpty)
-            SizedBox(
-              width: _largeurActions,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (final action in widget.actions)
-                    if (action.visible?.call(ligne) ?? true)
-                      SizedBox(
-                        width: 34,
-                        height: 34,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          iconSize: 18,
-                          tooltip: action.infobulle,
-                          color: action.couleur,
-                          icon: Icon(action.icone),
-                          onPressed: () => action.onTap(ligne),
+            if (widget.actions.isNotEmpty)
+              SizedBox(
+                width: _largeurActions,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (final action in widget.actions)
+                      if (action.visible?.call(ligne) ?? true)
+                        SizedBox(
+                          width: 34,
+                          height: 34,
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            iconSize: 18,
+                            tooltip: action.infobulle,
+                            color: action.couleur,
+                            icon: Icon(action.icone),
+                            onPressed: () => action.onTap(ligne),
+                          ),
                         ),
-                      ),
-                ],
+                  ],
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1226,6 +1200,10 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
       child: Text(
         texte,
         maxLines: 1,
+        softWrap: false,
+        // Les largeurs sont mesurées sur le contenu réel : le « … » ne peut
+        // apparaître que si l'utilisateur a explicitement désactivé le
+        // défilement horizontal dans les paramètres.
         overflow: TextOverflow.ellipsis,
         textAlign: colonne.numerique ? TextAlign.right : TextAlign.left,
         style: TextStyle(
@@ -1484,7 +1462,12 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (vertical) ...[
-          bouton(Icons.keyboard_arrow_up, !_enHaut, 'Revenir en haut', allerHaut),
+          bouton(
+            Icons.keyboard_arrow_up,
+            !_enHaut,
+            'Revenir en haut',
+            allerHaut,
+          ),
           const SizedBox(width: 4),
           bouton(
             Icons.keyboard_arrow_down,
@@ -1638,7 +1621,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
       message: _tout
           ? 'Revenir à la pagination'
           : 'Afficher toutes les lignes en une seule fois, sans les découper '
-            'en plusieurs pages',
+                'en plusieurs pages',
       child: Material(
         color: _tout
             ? scheme.primary

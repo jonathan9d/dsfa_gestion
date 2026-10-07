@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-
 import '../providers/app_providers.dart';
 import '../screens/activites/activites_screen.dart';
 import '../screens/authentification/accueil_screen.dart';
@@ -18,8 +17,10 @@ import '../screens/participants/participants_screen.dart';
 import '../screens/rapports/rapports_screen.dart';
 import '../screens/rapprochement/rapprochement_screen.dart';
 import '../screens/parametres/parametres_screen.dart';
+import '../screens/pieces_justificatives/pieces_justificatives_screen.dart';
 import '../screens/profil/profil_screen.dart';
 import '../screens/sauvegardes/sauvegardes_screen.dart';
+import '../screens/suivi/suivi_screen.dart';
 import '../shell/app_shell.dart';
 
 /// Routes de l'application.
@@ -34,12 +35,14 @@ class AppRoutes {
   static const budgets = '/budgets';
   static const participants = '/participants';
   static const dossierPj = '/dossier-pj';
+  static const controlesPj = '/dossier-pj/controles';
   static const depenses = '/depenses';
   static const banque = '/banque';
   static const rapprochement = '/rapprochement';
   static const rapports = '/rapports';
   static const parametres = '/parametres';
   static const sauvegardes = '/sauvegardes';
+  static const suivi = '/suivi';
 }
 
 /// Entrée de navigation (utilisée par la sidebar et la barre mobile).
@@ -66,8 +69,7 @@ class EntreeNavigation {
   final bool roleRequis;
 
   /// Icône à afficher selon l'état de sélection (pleine si actif).
-  IconData iconePour(bool actif) =>
-      actif ? (iconPlein ?? icon) : icon;
+  IconData iconePour(bool actif) => actif ? (iconPlein ?? icon) : icon;
 }
 
 const entreesNavigation = <EntreeNavigation>[
@@ -88,6 +90,12 @@ const entreesNavigation = <EntreeNavigation>[
     label: 'Budgets',
     icon: Icons.savings_outlined,
     iconPlein: Icons.savings,
+  ),
+  EntreeNavigation(
+    path: AppRoutes.suivi,
+    label: 'Suivi',
+    icon: Icons.track_changes_outlined,
+    iconPlein: Icons.track_changes,
   ),
   EntreeNavigation(
     path: AppRoutes.dossierPj,
@@ -184,59 +192,67 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const DemarrageScreen(),
       ),
       ShellRoute(
-      builder: (context, state, child) =>
-          AppShell(location: state.uri.path, child: child),
-      routes: [
-        GoRoute(
-          path: AppRoutes.dashboard,
-          builder: (_, __) => const DashboardScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.activites,
-          builder: (_, __) => const ActivitesScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.budgets,
-          builder: (_, __) => const BudgetsScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.participants,
-          builder: (_, __) => const ParticipantsScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.dossierPj,
-          builder: (_, __) => const DossierPjScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.depenses,
-          builder: (_, __) => const DepensesScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.banque,
-          builder: (_, __) => const BanqueScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.rapprochement,
-          builder: (_, __) => const RapprochementScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.rapports,
-          builder: (_, __) => const RapportsScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.parametres,
-          builder: (_, __) => const ParametresScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.profil,
-          builder: (_, __) => const ProfilScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.sauvegardes,
-          builder: (_, _) => const SauvegardesScreen(),
-        ),
-      ],
-    ),
+        builder: (context, state, child) =>
+            AppShell(location: state.uri.path, child: child),
+        routes: [
+          GoRoute(
+            path: AppRoutes.dashboard,
+            builder: (_, __) => const DashboardScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.activites,
+            builder: (_, __) => const ActivitesScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.budgets,
+            builder: (_, __) => const BudgetsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.participants,
+            builder: (_, __) => const ParticipantsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.dossierPj,
+            builder: (_, __) => const DossierPjScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.controlesPj,
+            builder: (_, __) => const PiecesJustificativesScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.suivi,
+            builder: (_, __) => const SuiviScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.depenses,
+            builder: (_, __) => const DepensesScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.banque,
+            builder: (_, __) => const BanqueScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.rapprochement,
+            builder: (_, __) => const RapprochementScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.rapports,
+            builder: (_, __) => const RapportsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.parametres,
+            builder: (_, __) => const ParametresScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.profil,
+            builder: (_, __) => const ProfilScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.sauvegardes,
+            builder: (_, _) => const SauvegardesScreen(),
+          ),
+        ],
+      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(

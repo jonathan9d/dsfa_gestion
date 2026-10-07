@@ -14,7 +14,7 @@ class ReglagesAffichage {
     this.couleurPrimaire = AppTheme.rose,
     this.couleurSecondaire = AppTheme.violet,
     this.echellePolice = 1.0,
-    this.filtresOuverts = true,
+    this.filtresOuverts = false,
     this.sauvegardeAutomatique = false,
   });
 
@@ -32,6 +32,9 @@ class ReglagesAffichage {
   final double echellePolice;
 
   /// Les filtres des tableaux sont-ils affichés d'emblée ?
+  ///
+  /// **Masqués par défaut** : les tableaux restent compacts et la barre de
+  /// filtres ne s'ouvre que sur demande (« Filtrer ») ou via ce réglage.
   final bool filtresOuverts;
 
   /// Crée automatiquement une sauvegarde à chaque ouverture (une par jour).
@@ -50,8 +53,7 @@ class ReglagesAffichage {
     couleurSecondaire: couleurSecondaire ?? this.couleurSecondaire,
     echellePolice: echellePolice ?? this.echellePolice,
     filtresOuverts: filtresOuverts ?? this.filtresOuverts,
-    sauvegardeAutomatique:
-        sauvegardeAutomatique ?? this.sauvegardeAutomatique,
+    sauvegardeAutomatique: sauvegardeAutomatique ?? this.sauvegardeAutomatique,
   );
 
   /// Réglages effectifs pour le contexte courant : valeur par défaut si
@@ -59,9 +61,9 @@ class ReglagesAffichage {
   /// isolés).
   static ReglagesAffichage of(BuildContext context) =>
       context
-              .dependOnInheritedWidgetOfExactType<ReglagesAffichageScope>()
-              ?.reglages ??
-          const ReglagesAffichage();
+          .dependOnInheritedWidgetOfExactType<ReglagesAffichageScope>()
+          ?.reglages ??
+      const ReglagesAffichage();
 
   // --- Persistance (clé / valeur de la table `parametres`) ---------------
 
@@ -92,7 +94,8 @@ class ReglagesAffichage {
   /// Toutes les paires clé/valeur à écrire dans `parametres`.
   Map<String, String> versParametres() => {
     cleDefilement: defilementHorizontal ? '1' : '0',
-    cleCouleurPrimaire: '0x${couleurPrimaire.toARGB32().toRadixString(16).padLeft(8, '0')}',
+    cleCouleurPrimaire:
+        '0x${couleurPrimaire.toARGB32().toRadixString(16).padLeft(8, '0')}',
     cleCouleurSecondaire:
         '0x${couleurSecondaire.toARGB32().toRadixString(16).padLeft(8, '0')}',
     clePolice: echellePolice.toStringAsFixed(2),
@@ -124,7 +127,7 @@ class ReglagesAffichage {
       couleurPrimaire: couleur(cleCouleurPrimaire, AppTheme.rose),
       couleurSecondaire: couleur(cleCouleurSecondaire, AppTheme.violet),
       echellePolice: echelle,
-      filtresOuverts: boole(cleFiltres, true),
+      filtresOuverts: boole(cleFiltres, false),
       sauvegardeAutomatique: boole(cleSauvegardeAuto, false),
     );
   }

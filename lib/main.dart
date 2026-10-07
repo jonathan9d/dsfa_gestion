@@ -54,12 +54,17 @@ class DsfaGestionApp extends ConsumerWidget {
       // d'effet élastique (voir [ComportementDefilement]).
       scrollBehavior: const ComportementDefilement(),
       builder: (context, child) {
-        // Écran de démarrage : affiché pendant la préparation des données de
-        // référence, avec une durée minimale pour rester perceptible.
+        // Le parcours d'authentification doit rester fluide : l'écran de
+        // démarrage ne doit pas masquer la salutation ni le formulaire de
+        // connexion. Il est réservé aux utilisateurs déjà connectés, ou à la
+        // préparation initiale des données après connexion.
         final initialisation = ref.watch(databaseBootstrapProvider);
         final demarrageVu = ref.watch(demarrageTermineProvider);
+        final connecte = ref.watch(sessionUtilisateurProvider) != null;
         final Widget contenu;
-        if (!demarrageVu || initialisation.isLoading || initialisation.hasError) {
+        if (!connecte) {
+          contenu = child ?? const SizedBox.shrink();
+        } else if (!demarrageVu || initialisation.isLoading || initialisation.hasError) {
           contenu = const DemarrageScreen();
         } else {
           contenu = child ?? const SizedBox.shrink();
