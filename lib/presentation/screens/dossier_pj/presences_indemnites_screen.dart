@@ -654,6 +654,9 @@ class _CelluleJours extends ConsumerWidget {
           'Modifier le nombre de jours d’activité\n'
           '(la présence du participant est mise à jour automatiquement)',
       child: InkWell(
+        // Clé stable : la cellule est la cible d'un test de bout en bout
+        // (« jours d'activité → fiche de présence »).
+        key: ValueKey('jours-activite-${fiche.participantId}'),
         borderRadius: BorderRadius.circular(8),
         onTap: () => showDialog<bool>(
           context: context,
@@ -921,8 +924,13 @@ class _FicheDialogState extends ConsumerState<_FicheDialog> {
                           label: 'Délai de route (j)',
                           step: 1,
                           onChanged: () => setState(() {}),
-                          validator: (v) =>
-                              validateurNombrePositif(v, champ: 'Le délai'),
+                          // Un délai de route nul est légitime (activité dans
+                          // la même ville) : seul le format est vérifié.
+                          validator: (v) => validateurNombrePositif(
+                            v,
+                            champ: 'Le délai de route',
+                            zeroAutorise: true,
+                          ),
                         ),
                       ),
                     ],
