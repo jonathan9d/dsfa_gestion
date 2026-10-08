@@ -33,6 +33,7 @@ class _ParticipantsScreenState extends ConsumerState<ParticipantsScreen> {
         children: [
           EnTetePage(
             titre: 'Participants',
+            module: 'participants',
             sousTitre: 'Répertoire des participants et bénéficiaires',
             actions: [
               FilledButton.icon(
@@ -98,6 +99,7 @@ class _TableauParticipants extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: TableauGestion<Participant>(
+        cleModule: 'participants',
         lignes: participants,
         cleLigne: (p) => p.id,
         messageVide:
@@ -106,6 +108,7 @@ class _TableauParticipants extends StatelessWidget {
         colonnes: [
           ColonneTableau(
             label: 'Nom',
+            cle: 'nom',
             flex: 4,
             valeur: (p) => p.nom,
             cellule: (_, p) => Text(
@@ -115,9 +118,15 @@ class _TableauParticipants extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-          ColonneTableau(label: 'Prénom', flex: 3, valeur: (p) => p.prenom),
+          ColonneTableau(
+            label: 'Prénom',
+            cle: 'prenom',
+            flex: 3,
+            valeur: (p) => p.prenom,
+          ),
           ColonneTableau(
             label: 'Statut',
+            cle: 'statut',
             flex: 3,
             valeur: (p) => p.actif ? 'Actif' : 'Inactif',
             cellule: (_, p) => Chip(
@@ -134,6 +143,7 @@ class _TableauParticipants extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Observation',
+            cle: 'observation',
             flex: 4,
             valeur: (p) => p.observation ?? '',
           ),
@@ -224,11 +234,7 @@ class _ParticipantDialogState extends ConsumerState<_ParticipantDialog> {
 
   @override
   void dispose() {
-    for (final c in [
-      _nom,
-      _prenom,
-      _observation,
-    ]) {
+    for (final c in [_nom, _prenom, _observation]) {
       c.dispose();
     }
     super.dispose();

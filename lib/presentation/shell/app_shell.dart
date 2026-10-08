@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:window_manager/window_manager.dart';
 
+import '../../domain/configuration/configuration_app.dart';
 import '../../domain/statuts.dart';
 import '../providers/app_providers.dart';
 import '../providers/providers.dart';
@@ -15,6 +17,7 @@ import '../reglages/raccourcis.dart';
 import '../router/app_router.dart';
 import '../screens/profil/profil_screen.dart';
 import '../widgets/common.dart';
+import '../widgets/icone_configuree.dart';
 
 /// Coquille responsive : sidebar sur desktop, barre + drawer sur mobile.
 class AppShell extends ConsumerStatefulWidget {
@@ -60,11 +63,21 @@ class _AppShellState extends ConsumerState<AppShell> {
     final estDesktop = largeur >= AppShell._breakpointDesktop;
 
     final location = widget.location;
-    final entreeActive = entreesNavigation.firstWhere(
-      (e) =>
-          location == e.path || (e.path != '/' && location.startsWith(e.path)),
-      orElse: () => entreesNavigation.first,
-    );
+    // Onglets livrés **plus** onglets créés dans la configuration : titres,
+    // icônes, ordre et visibilité viennent de la configuration.
+    final entrees = entreesNavigationPour(ConfigurationApp.of(context));
+    final entreeActive = entrees.isEmpty
+        ? const EntreeNavigation(
+            path: '/',
+            label: 'Tableau de bord',
+            icon: Icons.dashboard_outlined,
+          )
+        : entrees.firstWhere(
+            (e) =>
+                location == e.path ||
+                (e.path != '/' && location.startsWith(e.path)),
+            orElse: () => entrees.first,
+          );
 
     if (estDesktop) {
       final raccourcis =
@@ -93,7 +106,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               children: [
                 SizedBox(
                   height: double.infinity,
-                  child: _Sidebar(location: location),
+                  child: _Sidebar(location: location, entrees: entrees),
                 ),
                 const VerticalDivider(width: 1),
                 Expanded(
@@ -109,7 +122,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
 
     // Mobile / tablette : destinations principales + drawer complet.
-    final destinations = entreesNavigation.take(5).toList();
+    final destinations = entrees.take(5).toList();
     final index = destinations.indexWhere((e) => e.path == entreeActive.path);
 
     return Scaffold(
@@ -128,7 +141,9 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
         actions: const [_Horloge(compact: true), SizedBox(width: 4)],
       ),
-      drawer: Drawer(child: _DrawerMobile(entreeActive: entreeActive)),
+      drawer: Drawer(
+        child: _DrawerMobile(entreeActive: entreeActive, entrees: entrees),
+      ),
       body: _FondPage(
         child: _ContenuAnime(location: location, child: child),
       ),
@@ -207,8 +222,9 @@ class _ContenuAnime extends StatelessWidget {
 /// liste des rubriques qui reste toujours visible et défilable, jamais un
 /// écran vide.
 class _DrawerMobile extends ConsumerWidget {
-  const _DrawerMobile({required this.entreeActive});
+  const _DrawerMobile({required this.entreeActive, required this.entrees});
   final EntreeNavigation entreeActive;
+  final List<EntreeNavigation> entrees;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -261,14 +277,13 @@ class _DrawerMobile extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                for (final e in entreesNavigation)
+                for (final e in entrees)
                   ListTile(
                     dense: true,
-                    leading: Icon(
-                      e.iconePour(e.path == entreeActive.path),
-                      color: e.path == entreeActive.path
-                          ? scheme.primary
-                          : scheme.onSurfaceVariant,
+                    leading: _IconeEntree(
+                      entree: e,
+                      selectionne: e.path == entreeActive.path,
+                      taille: 22,
                     ),
                     title: Text(
                       e.label,
@@ -301,9 +316,10 @@ class _DrawerMobile extends ConsumerWidget {
 }
 
 class _Sidebar extends ConsumerWidget {
-  const _Sidebar({required this.location});
+  const _Sidebar({required this.location, required this.entrees});
 
   final String location;
+  final List<EntreeNavigation> entrees;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -322,7 +338,7 @@ class _Sidebar extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final reduite = ref.watch(sidebarReduiteProvider);
     final groupes = <String, List<EntreeNavigation>>{};
-    for (final e in entreesNavigation) {
+    for (final e in entrees) {
       groupes.putIfAbsent(e.groupe, () => []).add(e);
     }
 
@@ -515,6 +531,11 @@ class _Sidebar extends ConsumerWidget {
                                 (e.path != '/' && location.startsWith(e.path)),
                           ),
                       ],
+                      if (!reduite && !dense)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 6),
+                          child: _BandeauPartenaires(),
+                        ),
                     ],
                   ),
                 );
@@ -534,6 +555,91 @@ class _Sidebar extends ConsumerWidget {
   }
 }
 
+class _BandeauPartenaires extends StatefulWidget {
+  const _BandeauPartenaires();
+
+  @override
+  State<_BandeauPartenaires> createState() => _BandeauPartenairesState();
+}
+
+class _BandeauPartenairesState extends State<_BandeauPartenaires>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animation;
+
+  static const _partenaires = [
+    (nom: 'GitHub', icone: Icons.code),
+    (nom: 'VS Code', icone: Icons.terminal),
+    (nom: 'Copilot', icone: Icons.smart_toy_outlined),
+    (nom: 'Freebuff', icone: Icons.auto_awesome_outlined),
+    (nom: 'Flutter', icone: Icons.flutter_dash),
+    (nom: 'OpenAI', icone: Icons.hub_outlined),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _animation =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 1400),
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed) _animation.reverse();
+        });
+    _animation.forward();
+  }
+
+  @override
+  void dispose() {
+    _animation.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final couleur = Theme.of(context).colorScheme.onSurfaceVariant;
+    return SizedBox(
+      height: 30,
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.centerLeft,
+          minWidth: 600,
+          maxWidth: 600,
+          child: AnimatedBuilder(
+            animation: _animation,
+            builder: (context, _) => Transform.translate(
+              offset: Offset(-180 * _animation.value, 0),
+              child: SizedBox(
+                width: 600,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    for (final partenaire in _partenaires)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(partenaire.icone, size: 15, color: couleur),
+                          const SizedBox(width: 4),
+                          Text(
+                            partenaire.nom,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: couleur,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Pied de la sidebar : utilisateur connecté, horloge live, profil, thème,
 /// déconnexion. Version compacte : hauteur fixe réduite pour que le menu
 /// reste toujours entièrement visible.
@@ -547,6 +653,11 @@ class _PiedUtilisateur extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final utilisateur = ref.watch(sessionUtilisateurProvider);
     final mode = ref.watch(themeModeProvider);
+    final reglages = ref.watch(reglagesAffichageProvider);
+    final nombreModifications = ref
+        .watch(auditCountProvider)
+        .maybeWhen(data: (nombre) => nombre, orElse: () => null);
+    final sauvegardeAutomatique = reglages.sauvegardeAutomatique;
     final nom = utilisateur?.nom.trim().isNotEmpty == true
         ? utilisateur!.nom
         : (utilisateur?.identifiant ?? 'Invité');
@@ -584,7 +695,46 @@ class _PiedUtilisateur extends ConsumerWidget {
       if (context.mounted) context.go(AppRoutes.connexion);
     }
 
+    Future<void> basculerSon() async {
+      final actif = !reglages.sonActif;
+      ref.read(reglagesAffichageProvider.notifier).state = reglages.copyWith(
+        sonActif: actif,
+      );
+      try {
+        await ref
+            .read(parametresRepositoryProvider)
+            .ecrire(ReglagesAffichage.cleSonActif, actif ? '1' : '0');
+      } catch (error) {
+        if (!context.mounted) return;
+        ref.read(reglagesAffichageProvider.notifier).state = reglages;
+        notifier(
+          context,
+          'Le réglage du son n\'a pas été enregistré : $error',
+          erreur: true,
+        );
+      }
+    }
+
     Future<void> fermer() async {
+      if (sauvegardeAutomatique) {
+        try {
+          await ref
+              .read(sauvegardeServiceProvider)
+              .sauvegarder(automatique: true);
+        } catch (error) {
+          if (!context.mounted) return;
+          final quandMeme = await confirmer(
+            context,
+            titre: 'Sauvegarde automatique impossible',
+            message: '$error\n\nVoulez-vous quitter sans sauvegarde ?',
+            confirmerLabel: 'Quitter sans sauvegarde',
+          );
+          if (!quandMeme || !context.mounted) return;
+        }
+        _fermerApplication();
+        return;
+      }
+
       final choix = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -615,19 +765,14 @@ class _PiedUtilisateur extends ConsumerWidget {
       );
       if (choix == null || choix == 'annuler') return;
       if (choix == 'sauvegarder') {
-        var succes = true;
         try {
           await ref.read(sauvegardeServiceProvider).sauvegarder();
-        } catch (_) {
-          succes = false;
-        }
-        if (!succes) {
+        } catch (error) {
           if (!context.mounted) return;
           final quandMeme = await confirmer(
             context,
             titre: 'Sauvegarde impossible',
-            message:
-                'La sauvegarde n\'a pas pu être créée. Quitter quand même ?',
+            message: '$error\n\nVoulez-vous quitter sans sauvegarde ?',
             confirmerLabel: 'Quitter',
           );
           if (!quandMeme || !context.mounted) return;
@@ -667,6 +812,17 @@ class _PiedUtilisateur extends ConsumerWidget {
                 size: 20,
               ),
               onPressed: basculerTheme,
+            ),
+            IconButton(
+              tooltip: reglages.sonActif ? 'Couper le son' : 'Activer le son',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                reglages.sonActif
+                    ? Icons.volume_up_outlined
+                    : Icons.volume_off_outlined,
+                size: 20,
+              ),
+              onPressed: basculerSon,
             ),
             IconButton(
               tooltip: 'Se déconnecter',
@@ -715,7 +871,9 @@ class _PiedUtilisateur extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      role,
+                      nombreModifications == null
+                          ? role
+                          : '$role · $nombreModifications modifications',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -762,6 +920,23 @@ class _PiedUtilisateur extends ConsumerWidget {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 28),
                 child: IconButton(
+                  tooltip: reglages.sonActif
+                      ? 'Couper le son'
+                      : 'Activer le son',
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 20,
+                  icon: Icon(
+                    reglages.sonActif
+                        ? Icons.volume_up_outlined
+                        : Icons.volume_off_outlined,
+                  ),
+                  onPressed: basculerSon,
+                ),
+              ),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 28),
+                child: IconButton(
                   tooltip: 'Se déconnecter',
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
@@ -791,8 +966,14 @@ class _PiedUtilisateur extends ConsumerWidget {
   /// Fermeture de l'application Windows : la sauvegarde éventuelle est déjà
   /// terminée avant cet appel.
   void _fermerApplication() {
+    if (Platform.isWindows) {
+      unawaited(() async {
+        await windowManager.setPreventClose(false);
+        await windowManager.close();
+      }());
+      return;
+    }
     unawaited(SystemNavigator.pop());
-    Future<void>.delayed(const Duration(milliseconds: 400), () => exit(0));
   }
 }
 
@@ -911,6 +1092,57 @@ class _HorlogeState extends State<_Horloge> {
   }
 }
 
+/// Icône d'une entrée de navigation : **image importée** dans la
+/// configuration si elle existe, sinon l'icône Material de l'onglet (pleine
+/// quand l'onglet est actif).
+class _IconeEntree extends StatelessWidget {
+  const _IconeEntree({
+    required this.entree,
+    required this.selectionne,
+    this.taille = 20,
+  });
+
+  final EntreeNavigation entree;
+  final bool selectionne;
+  final double taille;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final couleur = selectionne
+        ? scheme.onPrimaryContainer
+        : scheme.onSurfaceVariant;
+    final importee = entree.iconeImportee;
+    final Widget icone;
+    if (importee != null && importee.isNotEmpty) {
+      // Une image importée garde ses propres couleurs.
+      icone = IconeConfiguree(
+        cle: entree.path,
+        importee: importee,
+        taille: taille,
+      );
+    } else {
+      icone = Icon(entree.iconePour(selectionne), size: taille, color: couleur);
+    }
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, animation) => ScaleTransition(
+        scale: animation,
+        child: RotationTransition(
+          turns: Tween<double>(begin: 0.94, end: 1).animate(animation),
+          child: child,
+        ),
+      ),
+      child: KeyedSubtree(
+        key: ValueKey('${entree.path}-$selectionne'),
+        child: icone,
+      ),
+    );
+  }
+}
+
 class _SidebarItem extends StatelessWidget {
   const _SidebarItem({
     required this.entree,
@@ -935,7 +1167,14 @@ class _SidebarItem extends StatelessWidget {
       curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
         color: selectionne ? scheme.primaryContainer : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(reduite ? 12 : 8),
+        border: reduite
+            ? Border.all(
+                color: selectionne
+                    ? scheme.primary.withValues(alpha: 0.5)
+                    : scheme.outlineVariant.withValues(alpha: 0.45),
+              )
+            : null,
       ),
       child: Material(
         color: Colors.transparent,
@@ -946,20 +1185,21 @@ class _SidebarItem extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: reduite ? 0 : 12,
-              vertical: dense ? 5 : 9,
+              vertical: reduite
+                  ? 4
+                  : dense
+                  ? 5
+                  : 9,
             ),
             child: Row(
               mainAxisAlignment: reduite
                   ? MainAxisAlignment.center
                   : MainAxisAlignment.start,
               children: [
-                Icon(
-                  // Icône pleine lorsque l'onglet est actif.
-                  entree.iconePour(selectionne),
-                  size: dense ? 19 : 20,
-                  color: selectionne
-                      ? scheme.onPrimaryContainer
-                      : scheme.onSurfaceVariant,
+                _IconeEntree(
+                  entree: entree,
+                  selectionne: selectionne,
+                  taille: reduite ? 26 : (dense ? 19 : 20),
                 ),
                 if (!reduite) ...[
                   const SizedBox(width: 12),

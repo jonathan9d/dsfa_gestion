@@ -41,10 +41,10 @@ class _Contenu extends ConsumerWidget {
     final colonnes = largeur > 1350
         ? 8
         : largeur > 950
-            ? 4
-            : largeur > 560
-                ? 2
-                : 1;
+        ? 4
+        : largeur > 560
+        ? 2
+        : 1;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -58,6 +58,7 @@ class _Contenu extends ConsumerWidget {
         children: [
           EnTetePage(
             titre: 'Tableau de bord',
+            module: 'tableau_de_bord',
             sousTitre:
                 'Situation financière et état des contrôles — données en temps réel',
           ),
@@ -68,7 +69,10 @@ class _Contenu extends ConsumerWidget {
               children: [
                 _GrilleKpi(indicateurs: indicateurs, colonnes: colonnes),
                 const SizedBox(height: 14),
-                _LigneConsommationPJ(indicateurs: indicateurs, largeur: largeur),
+                _LigneConsommationPJ(
+                  indicateurs: indicateurs,
+                  largeur: largeur,
+                ),
                 const SizedBox(height: 14),
                 _GrilleGraphiques(
                   parRubrique: parRubrique,
@@ -186,13 +190,7 @@ class _LigneConsommationPJ extends StatelessWidget {
     final consommation = _CarteConsommation(indicateurs: indicateurs);
     final pj = _CarteControlePJ(indicateurs: indicateurs);
     if (largeur < 900) {
-      return Column(
-        children: [
-          consommation,
-          const SizedBox(height: 16),
-          pj,
-        ],
-      );
+      return Column(children: [consommation, const SizedBox(height: 16), pj]);
     }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,15 +219,21 @@ class _CarteConsommation extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('${(taux * 100).toStringAsFixed(1)} %',
-                  style: theme.textTheme.headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                '${(taux * 100).toStringAsFixed(1)} %',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(width: 8),
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: Text('du budget consommé',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
+                child: Text(
+                  'du budget consommé',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
             ],
           ),
@@ -246,14 +250,17 @@ class _CarteConsommation extends StatelessWidget {
           Row(
             children: [
               _MiniStat(
-                  label: 'Alloué',
-                  valeur: formatMontant(indicateurs.montantTotalAlloue)),
+                label: 'Alloué',
+                valeur: formatMontant(indicateurs.montantTotalAlloue),
+              ),
               _MiniStat(
-                  label: 'Payé',
-                  valeur: formatMontant(indicateurs.montantTotalPaye)),
+                label: 'Payé',
+                valeur: formatMontant(indicateurs.montantTotalPaye),
+              ),
               _MiniStat(
-                  label: 'Solde',
-                  valeur: formatMontant(indicateurs.soldeBudget)),
+                label: 'Solde',
+                valeur: formatMontant(indicateurs.soldeBudget),
+              ),
             ],
           ),
         ],
@@ -274,16 +281,22 @@ class _MiniStat extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 2),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(valeur,
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w600)),
+            child: Text(
+              valeur,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -359,8 +372,7 @@ class _LigneControle extends StatelessWidget {
           Icon(icone, size: 18, color: couleur),
           const SizedBox(width: 10),
           Expanded(child: Text(label)),
-          Text('$valeur',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text('$valeur', style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -392,7 +404,8 @@ class _GrilleGraphiques extends StatelessWidget {
           data: (points) => points.isEmpty
               ? const EtatVide(
                   message: 'Aucune dépense enregistrée',
-                  icone: Icons.bar_chart_outlined)
+                  icone: Icons.bar_chart_outlined,
+                )
               : _BarresHorizontales(points: points),
         ),
       ),
@@ -408,7 +421,8 @@ class _GrilleGraphiques extends StatelessWidget {
           data: (points) => points.isEmpty
               ? const EtatVide(
                   message: 'Aucune donnée de dépense',
-                  icone: Icons.show_chart_outlined)
+                  icone: Icons.show_chart_outlined,
+                )
               : _Courbe(points: points),
         ),
       ),
@@ -424,7 +438,8 @@ class _GrilleGraphiques extends StatelessWidget {
           data: (points) => points.isEmpty
               ? const EtatVide(
                   message: 'Aucune activité enregistrée',
-                  icone: Icons.pie_chart_outline)
+                  icone: Icons.pie_chart_outline,
+                )
               : _Camembert(points: points),
         ),
       ),
@@ -464,7 +479,9 @@ class _BarresHorizontales extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final max = points.map((p) => p.valeur).fold<double>(0, (a, b) => a > b ? a : b);
+    final max = points
+        .map((p) => p.valeur)
+        .fold<double>(0, (a, b) => a > b ? a : b);
     final theme = Theme.of(context);
     return ListView(
       children: [
@@ -477,14 +494,19 @@ class _BarresHorizontales extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(p.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall),
+                      child: Text(
+                        p.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ),
-                    Text(formatMontant(p.valeur),
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      formatMontant(p.valeur),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 3),
@@ -493,8 +515,7 @@ class _BarresHorizontales extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: max == 0 ? 0 : p.valeur / max,
                     minHeight: 8,
-                    backgroundColor:
-                        theme.colorScheme.surfaceContainerHighest,
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   ),
                 ),
               ],
@@ -512,7 +533,9 @@ class _Courbe extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final maxY = points.map((p) => p.valeur).fold<double>(0, (a, b) => a > b ? a : b);
+    final maxY = points
+        .map((p) => p.valeur)
+        .fold<double>(0, (a, b) => a > b ? a : b);
     return LineChart(
       LineChartData(
         gridData: FlGridData(
@@ -534,8 +557,8 @@ class _Courbe extends StatelessWidget {
                 v >= 1000000
                     ? '${(v / 1000000).toStringAsFixed(0)}M'
                     : v >= 1000
-                        ? '${(v / 1000).toStringAsFixed(0)}k'
-                        : v.toStringAsFixed(0),
+                    ? '${(v / 1000).toStringAsFixed(0)}k'
+                    : v.toStringAsFixed(0),
                 style: const TextStyle(fontSize: 10),
               ),
             ),
@@ -549,8 +572,10 @@ class _Courbe extends StatelessWidget {
                 if (i < 0 || i >= points.length) return const SizedBox();
                 return Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(points[i].label,
-                      style: const TextStyle(fontSize: 9)),
+                  child: Text(
+                    points[i].label,
+                    style: const TextStyle(fontSize: 9),
+                  ),
                 );
               },
             ),
@@ -615,9 +640,10 @@ class _Camembert extends StatelessWidget {
                     title:
                         '${(points[i].valeur / total * 100).toStringAsFixed(0)}%',
                     titleStyle: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
               ],
             ),
@@ -642,10 +668,12 @@ class _Camembert extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(points[i].label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12)),
+                        child: Text(
+                          points[i].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ),
                     ],
                   ),
@@ -671,15 +699,15 @@ class _SyntheseControles extends StatelessWidget {
         runSpacing: 12,
         children: [
           _Ecart(
-              label: 'Écart budget total',
-              valeur: indicateurs.ecartBudgetTotal),
+            label: 'Écart budget total',
+            valeur: indicateurs.ecartBudgetTotal,
+          ),
           _Ecart(label: 'Écart PJ total', valeur: indicateurs.ecartPJTotal),
           _Ecart(
-              label: 'Indemnités reçues',
-              valeur: indicateurs.totalIndemnitesRecues),
-          _Ecart(
-              label: 'Dépenses journal',
-              valeur: indicateurs.totalDepenses),
+            label: 'Indemnités reçues',
+            valeur: indicateurs.totalIndemnitesRecues,
+          ),
+          _Ecart(label: 'Dépenses journal', valeur: indicateurs.totalDepenses),
         ],
       ),
     );
@@ -696,21 +724,27 @@ class _Ecart extends StatelessWidget {
     final couleur = valeur == 0
         ? const Color(0xFF2E7D32)
         : valeur > 0
-            ? const Color(0xFFC62828)
-            : const Color(0xFFB26A00);
+        ? const Color(0xFFC62828)
+        : const Color(0xFFB26A00);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(formatMontant(valeur),
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: couleur)),
+        Text(
+          formatMontant(valeur),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: couleur,
+          ),
+        ),
       ],
     );
   }

@@ -32,8 +32,6 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
     'Acquisition',
     'Mission extérieur',
   ];
-  static const _statuts = ['Planifiée', 'En cours', 'Terminée', 'Annulée'];
-
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _code;
   late final TextEditingController _description;
@@ -310,11 +308,6 @@ class _ActiviteFormDialogState extends ConsumerState<ActiviteFormDialog> {
         ref.watch(tousDistrictsProvider).value ?? const <District>[];
     final activitesExistantes =
         ref.watch(activitesProvider).value ?? const <Activite>[];
-    final responsables = activitesExistantes
-        .map((a) => a.responsable ?? '')
-        .where((v) => v.trim().isNotEmpty)
-        .toSet()
-        .toList();
     final codes = activitesExistantes.map((a) => a.code).toList();
     final descriptions = activitesExistantes
         .map((a) => a.description)

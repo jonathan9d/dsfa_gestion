@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/database/database.dart';
+import '../../../domain/configuration/configuration_app.dart';
 import '../../../domain/rubriques.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/providers.dart';
@@ -42,6 +43,7 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
         children: [
           EnTetePage(
             titre: 'Budgets',
+            module: 'budgets',
             sousTitre:
                 'Lignes budgétaires allouées — montant calculé automatiquement '
                 'selon les règles',
@@ -127,13 +129,20 @@ class _TableauBudgets extends StatelessWidget {
   final List<LigneBudget> lignes;
   final WidgetRef ref;
 
-  static String _rubriqueDe(LigneBudget l, List<String> rubriques) {
+  /// Rubrique d'une ligne : la **configuration** fait foi (affectation
+  /// explicite ligne → rubrique), puis la détection automatique par mots-clés.
+  static String _rubriqueDe(
+    LigneBudget l,
+    ConfigurationApp configuration,
+    List<String> rubriques,
+  ) {
     final details = _detailsLigne(l);
-    return RubriquesBudget.resoudre(
+    return RubriquesBudget.resoudreAvec(
+      configuration: configuration,
       ligneBudgetaire: l.ligneBudgetaire,
       typeBudget: l.typeBudget,
       rubriqueEnregistree: '${details['rubrique'] ?? ''}',
-      rubriques: rubriques,
+      rubriquesReferentiel: rubriques,
     );
   }
 
@@ -155,7 +164,9 @@ class _TableauBudgets extends StatelessWidget {
     );
     final totalAlloue = lignes.fold<double>(0, (s, l) => s + l.montantAlloue);
     final confirmees = lignes.where((l) => l.montantAlloue > 0).length;
-    final rubriques = RubriquesBudget.depuisTarifs(
+    final configuration = ConfigurationApp.of(context);
+    final rubriques = RubriquesBudget.listeAvecConfiguration(
+      configuration,
       (ref.watch(tousTarifsProvider).value ?? const <TarifReferentiel>[]).map(
         (t) => t.rubrique,
       ),
@@ -165,7 +176,7 @@ class _TableauBudgets extends StatelessWidget {
     // pré-impression et l'export), les totaux les plus importants d'abord.
     final parRubrique = <String, double>{};
     for (final l in lignes) {
-      final r = _rubriqueDe(l, rubriques);
+      final r = _rubriqueDe(l, configuration, rubriques);
       parRubrique[r] = (parRubrique[r] ?? 0) + l.montantAlloue;
     }
     final entrees = parRubrique.entries.toList()
@@ -174,6 +185,7 @@ class _TableauBudgets extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: TableauGestion<LigneBudget>(
+        cleModule: 'budgets',
         lignes: lignes,
         cleLigne: (l) => l.id,
         messageVide:
@@ -204,6 +216,7 @@ class _TableauBudgets extends StatelessWidget {
         colonnes: [
           ColonneTableau(
             label: 'Activité',
+            cle: 'activite',
             flex: 2,
             valeur: (l) => l.activiteCode,
             cellule: (_, l) => Text(
@@ -215,10 +228,11 @@ class _TableauBudgets extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Rubrique',
+            cle: 'rubrique',
             flex: 3,
-            valeur: (l) => _rubriqueDe(l, rubriques),
+            valeur: (l) => _rubriqueDe(l, configuration, rubriques),
             cellule: (context, l) {
-              final r = _rubriqueDe(l, rubriques);
+              final r = _rubriqueDe(l, configuration, rubriques);
               final inconnue = RubriquesBudget.estLibre(r);
               return Tooltip(
                 message: inconnue
@@ -242,12 +256,19 @@ class _TableauBudgets extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Ligne budgétaire',
+            cle: 'ligne_budgetaire',
             flex: 4,
             valeur: (l) => l.ligneBudgetaire,
           ),
-          ColonneTableau(label: 'Unité', flex: 2, valeur: (l) => l.unite),
+          ColonneTableau(
+            label: 'Unité',
+            cle: 'unite',
+            flex: 2,
+            valeur: (l) => l.unite,
+          ),
           ColonneTableau(
             label: 'Quantité / Base',
+            cle: 'quantite',
             flex: 2,
             numerique: true,
             valeur: (l) => l.quantitePrevue.toStringAsFixed(0),
@@ -255,6 +276,7 @@ class _TableauBudgets extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Jours / Multiplicateur',
+            cle: 'nombre_jours',
             flex: 2,
             numerique: true,
             valeur: (l) => l.nombreJours.toStringAsFixed(0),
@@ -262,6 +284,7 @@ class _TableauBudgets extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Taux / PU',
+            cle: 'taux_unitaire',
             flex: 3,
             numerique: true,
             valeur: (l) => formatMontant(l.tauxUnitaire),
@@ -269,6 +292,7 @@ class _TableauBudgets extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Budget prévisionnel',
+            cle: 'budget_previsionnel',
             flex: 3,
             numerique: true,
             valeur: (l) => formatMontant(montantPrevisionnelLigneBudget(l)),
@@ -276,6 +300,7 @@ class _TableauBudgets extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Montant alloué',
+            cle: 'montant_alloue',
             flex: 3,
             numerique: true,
             valeur: (l) => formatMontant(l.montantAlloue),
@@ -317,6 +342,7 @@ class _TableauBudgets extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Observation',
+            cle: 'observation',
             flex: 3,
             valeur: (l) => l.observation ?? '',
           ),

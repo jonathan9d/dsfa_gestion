@@ -74,76 +74,76 @@ class RapportFinancierSection extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               TableauGestion<LigneRapportFinancier>(
-                  lignes: r.lignes,
-                  cleLigne: (l) =>
-                      '${l.codeActivite}|${l.ligneBudgetaire}',
-                  taillePage: 25,
-                  messageVide:
-                      'Aucune ligne budgétaire pour construire le rapport financier.',
-                  colonnes: [
-                    ColonneTableau(
-                      label: 'Code activité',
-                      flex: 2,
-                      valeur: (l) => l.codeActivite,
-                      cellule: (_, l) => Text(
-                        l.codeActivite,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                lignes: r.lignes,
+                cleLigne: (l) => '${l.codeActivite}|${l.ligneBudgetaire}',
+                cleModule: 'rapport_financier',
+                taillePage: 25,
+                messageVide:
+                    'Aucune ligne budgétaire pour construire le rapport financier.',
+                colonnes: [
+                  ColonneTableau(
+                    label: 'Code activité',
+                    flex: 2,
+                    valeur: (l) => l.codeActivite,
+                    cellule: (_, l) => Text(
+                      l.codeActivite,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  ColonneTableau(
+                    label: 'Code budget',
+                    flex: 2,
+                    valeur: (l) => l.codeBudget,
+                  ),
+                  ColonneTableau(
+                    label: 'Description activité',
+                    flex: 4,
+                    valeur: (l) => l.descriptionActivite,
+                  ),
+                  ColonneTableau(
+                    label: 'Ligne budgetaire',
+                    flex: 4,
+                    valeur: (l) => l.ligneBudgetaire,
+                  ),
+                  ColonneTableau(
+                    label: 'Montant alloué',
+                    flex: 3,
+                    numerique: true,
+                    valeur: (l) => formatMontant(l.montantAlloue),
+                    cleTri: (l) => l.montantAlloue,
+                  ),
+                  ColonneTableau(
+                    label: 'Dépenses réalisées',
+                    flex: 3,
+                    numerique: true,
+                    valeur: (l) => formatMontant(l.depensesRealisees),
+                    cleTri: (l) => l.depensesRealisees,
+                  ),
+                  ColonneTableau(
+                    label: 'Écart',
+                    flex: 3,
+                    numerique: true,
+                    valeur: (l) => formatMontant(l.ecart),
+                    cleTri: (l) => l.ecart,
+                    cellule: (_, l) => Text(
+                      formatMontant(l.ecart),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: l.ecart < 0
+                            ? const Color(0xFFC62828)
+                            : const Color(0xFF2E7D32),
                       ),
                     ),
-                    ColonneTableau(
-                      label: 'Code budget',
-                      flex: 2,
-                      valeur: (l) => l.codeBudget,
-                    ),
-                    ColonneTableau(
-                      label: 'Description activité',
-                      flex: 4,
-                      valeur: (l) => l.descriptionActivite,
-                    ),
-                    ColonneTableau(
-                      label: 'Ligne budgetaire',
-                      flex: 4,
-                      valeur: (l) => l.ligneBudgetaire,
-                    ),
-                    ColonneTableau(
-                      label: 'Montant alloué',
-                      flex: 3,
-                      numerique: true,
-                      valeur: (l) => formatMontant(l.montantAlloue),
-                      cleTri: (l) => l.montantAlloue,
-                    ),
-                    ColonneTableau(
-                      label: 'Dépenses réalisées',
-                      flex: 3,
-                      numerique: true,
-                      valeur: (l) => formatMontant(l.depensesRealisees),
-                      cleTri: (l) => l.depensesRealisees,
-                    ),
-                    ColonneTableau(
-                      label: 'Écart',
-                      flex: 3,
-                      numerique: true,
-                      valeur: (l) => formatMontant(l.ecart),
-                      cleTri: (l) => l.ecart,
-                      cellule: (_, l) => Text(
-                        formatMontant(l.ecart),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: l.ecart < 0
-                              ? const Color(0xFFC62828)
-                              : const Color(0xFF2E7D32),
-                        ),
-                      ),
-                    ),
-                    ColonneTableau(
-                      label: 'Observation',
-                      flex: 3,
-                      valeur: (l) => l.observationFinale,
-                    ),
-                  ],
-                ),
+                  ),
+                  ColonneTableau(
+                    label: 'Observation',
+                    flex: 3,
+                    valeur: (l) => l.observationFinale,
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -197,7 +197,11 @@ class _Indicateur extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             valeur,
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: couleur),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: couleur,
+            ),
           ),
         ],
       ),
@@ -242,7 +246,8 @@ class _ApercuRapportFinancierDialogState
       await ref
           .read(excelExportServiceProvider)
           .sauvegarder(octets, uri.toFilePath());
-      if (mounted) notifier(context, 'Fichier enregistré : ${uri.toFilePath()}');
+      if (mounted)
+        notifier(context, 'Fichier enregistré : ${uri.toFilePath()}');
     } catch (e) {
       if (mounted) notifier(context, 'Export impossible : $e', erreur: true);
     } finally {
@@ -272,7 +277,10 @@ class _ApercuRapportFinancierDialogState
                 runSpacing: 10,
                 children: [
                   _Recap(label: 'Alloué', valeur: formatMontant(r.totalAlloue)),
-                  _Recap(label: 'Réalisé', valeur: formatMontant(r.totalRealise)),
+                  _Recap(
+                    label: 'Réalisé',
+                    valeur: formatMontant(r.totalRealise),
+                  ),
                   _Recap(label: 'Écart', valeur: formatMontant(r.totalEcart)),
                   _Recap(
                     label: 'Consommation',
@@ -347,13 +355,13 @@ class _ApercuRapportFinancierDialogState
           onPressed: _enCours
               ? null
               : () => _exporter(
-                    generer: () => ref
-                        .read(excelExportServiceProvider)
-                        .exporterRapportFinancier(r),
-                    titre: 'Enregistrer le rapport Excel',
-                    nomFichier: 'DSFA_rapport_financier',
-                    extension: 'xlsx',
-                  ),
+                  generer: () => ref
+                      .read(excelExportServiceProvider)
+                      .exporterRapportFinancier(r),
+                  titre: 'Enregistrer le rapport Excel',
+                  nomFichier: 'DSFA_rapport_financier',
+                  extension: 'xlsx',
+                ),
           icon: const Icon(Icons.table_view_outlined, size: 18),
           label: const Text('Exporter Excel'),
         ),
@@ -361,13 +369,13 @@ class _ApercuRapportFinancierDialogState
           onPressed: _enCours
               ? null
               : () => _exporter(
-                    generer: () => ref
-                        .read(pdfExportServiceProvider)
-                        .rapportFinancierDetaille(r),
-                    titre: 'Enregistrer le rapport PDF',
-                    nomFichier: 'DSFA_rapport_financier',
-                    extension: 'pdf',
-                  ),
+                  generer: () => ref
+                      .read(pdfExportServiceProvider)
+                      .rapportFinancierDetaille(r),
+                  titre: 'Enregistrer le rapport PDF',
+                  nomFichier: 'DSFA_rapport_financier',
+                  extension: 'pdf',
+                ),
           icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
           label: const Text('Exporter PDF'),
         ),
@@ -395,12 +403,14 @@ class _Recap extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11.5, color: scheme.onSurfaceVariant)),
-          Text(valeur,
-              style:
-                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
+          ),
+          Text(
+            valeur,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          ),
         ],
       ),
     );

@@ -17,7 +17,9 @@ class AuditRepository {
     Object? nouvelleValeur,
     String utilisateur = 'systeme',
   }) async {
-    await _db.into(_db.journalAudit).insert(
+    await _db
+        .into(_db.journalAudit)
+        .insert(
           JournalAuditCompanion.insert(
             action: action,
             entite: entite,
@@ -35,5 +37,12 @@ class AuditRepository {
           ..orderBy([(t) => OrderingTerm.desc(t.dateHeure)])
           ..limit(limit))
         .get();
+  }
+
+  Stream<int> watchNombre() {
+    final nombre = _db.journalAudit.id.count();
+    return (_db.selectOnly(_db.journalAudit)..addColumns([nombre]))
+        .watchSingle()
+        .map((ligne) => ligne.read(nombre) ?? 0);
   }
 }

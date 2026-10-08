@@ -308,9 +308,7 @@ class _ConnexionScreenState extends ConsumerState<ConnexionScreen> {
                     dimension: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Icon(
-                    creation ? Icons.person_add_alt_1 : Icons.login,
-                  ),
+                : Icon(creation ? Icons.person_add_alt_1 : Icons.login),
             label: Text(
               _enCours
                   ? 'Vérification…'
@@ -389,7 +387,8 @@ class _ConnexionScreenState extends ConsumerState<ConnexionScreen> {
     } catch (error) {
       if (mounted) {
         setState(
-          () => _erreur = 'Connexion impossible.\n${messageErreurLisible(error)}',
+          () =>
+              _erreur = 'Connexion impossible.\n${messageErreurLisible(error)}',
         );
       }
     } finally {

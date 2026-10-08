@@ -1,5 +1,12 @@
+import 'dart:convert';
+
+import 'package:drift/native.dart';
 import 'package:dsfa_gestion/presentation/widgets/tableau.dart';
+import 'package:dsfa_gestion/data/database/database.dart';
+import 'package:dsfa_gestion/data/repositories/referentiel_repository.dart';
+import 'package:dsfa_gestion/presentation/providers/providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Ligne {
@@ -30,6 +37,7 @@ Widget _tableau({
   required List<_Ligne> lignes,
   int taillePage = 25,
   Future<void> Function(List<_Ligne>)? onSupprimer,
+  String? cleModule,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -39,6 +47,7 @@ Widget _tableau({
           lignes: lignes,
           cleLigne: (l) => l.id,
           taillePage: taillePage,
+          cleModule: cleModule,
           onSupprimer: onSupprimer,
           colonnes: [
             ColonneTableau(label: 'Nom', valeur: (l) => l.nom),
@@ -109,6 +118,8 @@ void main() {
     await tester.pumpAndSettle();
     // Une case dans l'en-tête + une par ligne visible.
     expect(find.byType(Checkbox), findsNWidgets(4));
+    expect(find.text('Aucune ligne sélectionnée — total : 0'), findsOneWidget);
+    expect(find.textContaining('Total Ar :'), findsNothing);
 
     // Sélection de toutes les lignes via la case d'en-tête.
     await tester.tap(find.byType(Checkbox).first);
@@ -118,10 +129,7 @@ void main() {
     // Le total de la colonne numérique est affiché en bas.
     expect(find.textContaining('Total Ar :'), findsOneWidget);
 
-    final suppression = find.widgetWithText(
-      FilledButton,
-      'Supprimer (3)',
-    );
+    final suppression = find.widgetWithText(FilledButton, 'Supprimer (3)');
     expect(suppression, findsOneWidget);
     await tester.tap(suppression);
     await tester.pumpAndSettle();
@@ -134,11 +142,93 @@ void main() {
     expect(find.text('3 ligne(s) supprimée(s).'), findsOneWidget);
   });
 
+  testWidgets('Une page : pas de pagination ni contrôles de défilement', (
+    tester,
+  ) async {
+    _taille(tester, 1400, 800);
+    await tester.pumpWidget(_tableau(lignes: _lignesCourtes()));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Lignes 1 à'), findsNothing);
+    expect(find.text('Tout afficher'), findsNothing);
+    expect(find.byTooltip('Défiler vers le haut'), findsNothing);
+    expect(find.byTooltip('Défiler vers le bas'), findsNothing);
+    expect(find.byTooltip('Défiler vers la gauche'), findsNothing);
+    expect(find.byTooltip('Défiler vers la droite'), findsNothing);
+  });
+
+  testWidgets('Les colonnes et la hauteur du tableau se redimensionnent', (
+    tester,
+  ) async {
+    _taille(tester, 1400, 800);
+    await tester.pumpWidget(_tableau(lignes: _lignesCourtes()));
+    await tester.pumpAndSettle();
+
+    final villeAvant = tester.getRect(find.text('Ville')).left;
+    await tester.drag(
+      find.byKey(const ValueKey('poignee-colonne-0')),
+      const Offset(60, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.text('Ville')).left,
+      greaterThan(villeAvant + 40),
+    );
+
+    final hauteurAvant = tester
+        .getSize(find.byKey(const ValueKey('tableau-redimensionnable')))
+        .height;
+    await tester.drag(
+      find.byKey(const ValueKey('poignee-redimensionnement-vertical')),
+      const Offset(0, 40),
+    );
+    await tester.pumpAndSettle();
+    final hauteurApres = tester
+        .getSize(find.byKey(const ValueKey('tableau-redimensionnable')))
+        .height;
+    expect(hauteurApres, greaterThan(hauteurAvant + 30));
+  });
+
+  testWidgets('Les dimensions redimensionnées sont persistées', (tester) async {
+    _taille(tester, 1400, 800);
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [databaseProvider.overrideWithValue(db)],
+        child: _tableau(lignes: _lignesCourtes(), cleModule: 'test_dimensions'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(
+      find.byKey(const ValueKey('poignee-colonne-0')),
+      const Offset(55, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const ValueKey('poignee-redimensionnement-vertical')),
+      const Offset(0, 35),
+    );
+    await tester.pumpAndSettle();
+
+    final brut = await ParametresRepository(
+      db,
+    ).lire('tableau_dimensions_test_dimensions');
+    expect(brut, isNotNull);
+    final dimensions = jsonDecode(brut!) as Map<String, dynamic>;
+    expect(dimensions['largeurs'], isNotEmpty);
+    expect(dimensions['hauteur'], greaterThan(220));
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('Bouton « Tout afficher » : plus aucune pagination', (
     tester,
   ) async {
     _taille(tester, 1400, 800);
-    final lignes = [for (var i = 0; i < 60; i++) _Ligne(i, 'Nom $i', 'Ville', 1)];
+    final lignes = [
+      for (var i = 0; i < 60; i++) _Ligne(i, 'Nom $i', 'Ville', 1),
+    ];
     await tester.pumpWidget(_tableau(lignes: lignes));
     await tester.pumpAndSettle();
 

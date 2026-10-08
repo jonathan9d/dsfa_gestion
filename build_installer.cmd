@@ -1,7 +1,7 @@
 @echo off
 REM ============================================================
 REM  Construit l'application Windows puis genere l'installeur.
-REM  Resultat : build\installer\DSFA_Gestion_Setup_1.0.0.exe
+REM  Resultat : build\installer\DSFA_Gestion_Setup_1.2.0.exe
 REM ============================================================
 setlocal
 cd /d "%~dp0"
@@ -26,5 +26,5 @@ if errorlevel 1 (
 )
 
 echo.
-echo Termine. Installeur : build\installer\DSFA_Gestion_Setup_1.0.0.exe
+echo Termine. Installeur : build\installer\DSFA_Gestion_Setup_1.2.0.exe
 endlocal

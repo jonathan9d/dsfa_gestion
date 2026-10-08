@@ -94,7 +94,9 @@ void main() {
       // d'identifiants vient ensuite automatiquement, sans salutation à
       // l'intérieur.
       expect(find.text('Se connecter'), findsNothing);
-      for (var i = 0; i < 20; i++) {
+      // L'écran de démarrage (2,6 s) puis la salutation (1,5 s) précèdent
+      // désormais le formulaire de connexion.
+      for (var i = 0; i < 42; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
 

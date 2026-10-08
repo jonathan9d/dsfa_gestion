@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/database/database.dart';
+import '../../../domain/configuration/configuration_app.dart';
+import '../../../domain/configuration/formules.dart';
+import '../../../domain/rubriques.dart';
 import '../../../domain/services/regles_metier.dart';
 import '../../providers/app_providers.dart';
+import '../../providers/configuration_providers.dart';
 import '../../providers/providers.dart';
 import '../../widgets/common.dart';
 import '../../widgets/tableau.dart';
@@ -29,33 +33,41 @@ class _DepensesScreenState extends ConsumerState<DepensesScreen> {
   @override
   Widget build(BuildContext context) {
     final depenses = ref.watch(depensesProvider);
+    // Les actions de l'onglet sont réglables dans la configuration : un
+    // bouton décoché disparaît sans que les données changent.
+    final module = ConfigurationApp.of(context).module('depenses');
+    final peutAjouter = module?.actionAutorisee(ActionsApp.ajouter) ?? true;
+    final peutChercher = module?.actionAutorisee(ActionsApp.rechercher) ?? true;
     return Scaffold(
       body: Column(
         children: [
           EnTetePage(
             titre: 'Dépenses',
+            module: 'depenses',
             sousTitre:
                 'Journal des dépenses — montant = nbr jr/mois × quantité × fréquence × P.U.',
             actions: [
-              FilledButton.icon(
-                onPressed: () => _ouvrirFormulaire(),
-                icon: const Icon(Icons.add),
-                label: const Text('Nouvelle dépense'),
-              ),
+              if (peutAjouter)
+                FilledButton.icon(
+                  onPressed: () => _ouvrirFormulaire(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nouvelle dépense'),
+                ),
             ],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: SizedBox(
-              width: 380,
-              child: ChampRecherche(
-                controller: _recherche,
-                hint: 'Rechercher une dépense',
-                onChanged: (v) =>
-                    ref.read(filtreRechercheProvider.notifier).state = v,
+          if (peutChercher)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: SizedBox(
+                width: 380,
+                child: ChampRecherche(
+                  controller: _recherche,
+                  hint: 'Rechercher une dépense',
+                  onChanged: (v) =>
+                      ref.read(filtreRechercheProvider.notifier).state = v,
+                ),
               ),
             ),
-          ),
           const SizedBox(height: 16),
           Expanded(
             child: depenses.when(
@@ -96,19 +108,33 @@ class _TableauDepenses extends StatelessWidget {
   final WidgetRef ref;
 
   double _montant(Depense d) => ReglesMetier.montantDepense(
-        nbJrMois: d.nbJrMois,
-        quantite: d.quantite,
-        frequence: d.frequence,
-        pu: d.pu,
-      );
+    nbJrMois: d.nbJrMois,
+    quantite: d.quantite,
+    frequence: d.frequence,
+    pu: d.pu,
+  );
+
+  /// Couleur d'un statut : la **configuration** (Statuts & couleurs) fait
+  /// foi, avec les couleurs de l'application en repli.
+  Color _couleurStatut(BuildContext context, String statut) {
+    final configuree = ConfigurationApp.of(context).couleurStatut(statut);
+    if (configuree != null) return configuree;
+    return switch (statut) {
+      'Conforme' => const Color(0xFF2E7D32),
+      'Non conforme' ||
+      'PJ non reçue' ||
+      'Date PJ non conforme' => const Color(0xFFC62828),
+      'À vérifier' => const Color(0xFFF9A825),
+      _ => Theme.of(context).colorScheme.onSurfaceVariant,
+    };
+  }
 
   /// Statut de conformité de la pièce justificative liée à cette dépense
   /// (mise à jour automatique à l'enregistrement du dossier PJ).
   String _statutPJ(Depense d) {
     final id = d.controlePJId;
     if (id == null) return '—';
-    final resultats =
-        ref.watch(resultatsControlePJProvider).value ?? const [];
+    final resultats = ref.watch(resultatsControlePJProvider).value ?? const [];
     for (final (c, r) in resultats) {
       if (c.id == id) {
         return r.statutFinal.isEmpty ? 'À vérifier' : r.statutFinal;
@@ -123,6 +149,7 @@ class _TableauDepenses extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: TableauGestion<Depense>(
+        cleModule: 'depenses',
         lignes: depenses,
         cleLigne: (d) => d.id,
         messageVide:
@@ -133,23 +160,29 @@ class _TableauDepenses extends StatelessWidget {
           runSpacing: 8,
           children: [
             Chip(
-              avatar:
-                  const Icon(Icons.account_balance_wallet_outlined, size: 16),
+              avatar: const Icon(
+                Icons.account_balance_wallet_outlined,
+                size: 16,
+              ),
               visualDensity: VisualDensity.compact,
-              label: Text('Total : ${formatMontant(total)}',
-                  style: const TextStyle(fontSize: 12.5)),
+              label: Text(
+                'Total : ${formatMontant(total)}',
+                style: const TextStyle(fontSize: 12.5),
+              ),
             ),
           ],
         ),
         colonnes: [
           ColonneTableau(
             label: 'Date',
+            cle: 'date',
             flex: 2,
             valeur: (d) => formatDate(d.dateEnregistrement),
             cleTri: (d) => d.dateEnregistrement,
           ),
           ColonneTableau(
             label: 'Code activité',
+            cle: 'code_activite',
             flex: 2,
             valeur: (d) => d.codeActivite ?? '',
             cellule: (_, d) => Text(
@@ -161,23 +194,30 @@ class _TableauDepenses extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Désignation',
+            cle: 'designation',
             flex: 5,
             valeur: (d) => d.designation,
           ),
-          ColonneTableau(label: 'Mode de paiement', flex: 3, valeur: (d) => d.fonds),
+          ColonneTableau(
+            label: 'Bénéficiaire',
+            cle: 'beneficiaire',
+            flex: 3,
+            valeur: (d) => d.beneficiaire ?? '',
+          ),
+          ColonneTableau(
+            label: 'Mode de paiement',
+            cle: 'mode_paiement',
+            flex: 3,
+            valeur: (d) => d.fonds,
+          ),
           ColonneTableau(
             label: 'Statut PJ',
+            cle: 'statut_pj',
             flex: 3,
             valeur: (d) => _statutPJ(d),
             cellule: (_, d) {
               final statut = _statutPJ(d);
-              final couleur = switch (statut) {
-                'Conforme' => const Color(0xFF2E7D32),
-                'Non conforme' || 'PJ non reçue' || 'Date PJ non conforme' =>
-                  const Color(0xFFC62828),
-                'À vérifier' => const Color(0xFFF9A825),
-                _ => Theme.of(context).colorScheme.onSurfaceVariant,
-              };
+              final couleur = _couleurStatut(context, statut);
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -185,8 +225,8 @@ class _TableauDepenses extends StatelessWidget {
                     statut == 'Conforme'
                         ? Icons.verified_outlined
                         : statut == '—'
-                            ? Icons.remove
-                            : Icons.rule_outlined,
+                        ? Icons.remove
+                        : Icons.rule_outlined,
                     size: 15,
                     color: couleur,
                   ),
@@ -209,6 +249,7 @@ class _TableauDepenses extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Qté',
+            cle: 'quantite',
             flex: 2,
             numerique: true,
             valeur: (d) => d.quantite.toStringAsFixed(0),
@@ -216,6 +257,7 @@ class _TableauDepenses extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'P.U.',
+            cle: 'pu',
             flex: 3,
             numerique: true,
             valeur: (d) => formatMontant(d.pu),
@@ -223,6 +265,7 @@ class _TableauDepenses extends StatelessWidget {
           ),
           ColonneTableau(
             label: 'Montant',
+            cle: 'montant',
             flex: 3,
             numerique: true,
             valeur: (d) => formatMontant(_montant(d)),
@@ -236,19 +279,23 @@ class _TableauDepenses extends StatelessWidget {
           ),
         ],
         actions: [
-          ActionTableau<Depense>(
-            icone: Icons.edit_outlined,
-            infobulle: 'Modifier',
-            onTap: (d) async {
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (_) => _DepenseDialog(depense: d),
-              );
-              if (ok == true && context.mounted) {
-                notifier(context, 'Dépense modifiée');
-              }
-            },
-          ),
+          if (ConfigurationApp.of(
+                context,
+              ).module('depenses')?.actionAutorisee(ActionsApp.modifier) ??
+              true)
+            ActionTableau<Depense>(
+              icone: Icons.edit_outlined,
+              infobulle: 'Modifier',
+              onTap: (d) async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => _DepenseDialog(depense: d),
+                );
+                if (ok == true && context.mounted) {
+                  notifier(context, 'Dépense modifiée');
+                }
+              },
+            ),
           ActionTableau<Depense>(
             icone: Icons.delete_outline,
             infobulle: 'Supprimer',
@@ -276,7 +323,6 @@ class _TableauDepenses extends StatelessWidget {
   }
 }
 
-
 class _DepenseDialog extends ConsumerStatefulWidget {
   const _DepenseDialog({this.depense});
   final Depense? depense;
@@ -298,6 +344,7 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
   late final TextEditingController _refDecaissement;
   late final TextEditingController _refPiece;
   late final TextEditingController _dct;
+  late final TextEditingController _beneficiaire;
   late final TextEditingController _observation;
   DateTime? _dateEnregistrement;
   DateTime? _datePiece;
@@ -318,6 +365,7 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
     _refDecaissement = TextEditingController(text: d?.refDecaissement ?? '');
     _refPiece = TextEditingController(text: d?.refPieceDepense ?? '');
     _dct = TextEditingController(text: d?.dctNumero ?? '');
+    _beneficiaire = TextEditingController(text: d?.beneficiaire ?? '');
     _observation = TextEditingController(text: d?.observation ?? '');
     _dateEnregistrement = d?.dateEnregistrement;
     _datePiece = d?.datePieceComptable;
@@ -335,8 +383,9 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
 
   /// Pré-remplit le code budget et la source de financement depuis l'activité.
   Future<void> _remplirCodeBudget(String code) async {
-    final activite =
-        await ref.read(activitesRepositoryProvider).parCode(code.trim());
+    final activite = await ref
+        .read(activitesRepositoryProvider)
+        .parCode(code.trim());
     if (!mounted || activite == null) return;
     setState(() {
       if ((activite.codeBudget ?? '').trim().isNotEmpty) {
@@ -417,6 +466,7 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
       _refDecaissement,
       _refPiece,
       _dct,
+      _beneficiaire,
       _observation,
     ]) {
       c.dispose();
@@ -424,12 +474,41 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
     super.dispose();
   }
 
-  double get _montant => ReglesMetier.montantDepense(
-        nbJrMois: double.tryParse(_nbJrMois.text.replaceAll(',', '.')) ?? 0,
-        quantite: double.tryParse(_quantite.text.replaceAll(',', '.')) ?? 0,
-        frequence: double.tryParse(_frequence.text.replaceAll(',', '.')) ?? 1,
-        pu: double.tryParse(_pu.text.replaceAll(',', '.')) ?? 0,
-      );
+  /// Valeurs numériques saisies : elles alimentent la **formule** du champ
+  /// « Montant » définie dans la configuration.
+  Map<String, num> get _variables => {
+    'nb_jr_mois': double.tryParse(_nbJrMois.text.replaceAll(',', '.')) ?? 0,
+    'quantite': double.tryParse(_quantite.text.replaceAll(',', '.')) ?? 0,
+    'frequence': double.tryParse(_frequence.text.replaceAll(',', '.')) ?? 1,
+    'pu': double.tryParse(_pu.text.replaceAll(',', '.')) ?? 0,
+  };
+
+  /// Formule du montant enregistrée dans la configuration (Paramètres ▸
+  /// Configuration ▸ Formules), quand elle existe et qu'elle est valide.
+  String? get _formuleMontant {
+    final formule = ref
+        .read(configurationProvider)
+        .champ('depenses', 'montant')
+        ?.formule;
+    if (formule == null || formule.trim().isEmpty) return null;
+    return Formule.essayer(formule, _variables) == null ? null : formule;
+  }
+
+  /// Montant de la ligne : formule de la configuration, sinon règle métier
+  /// (`nb jr/mois × quantité × fréquence × P.U.`) — jamais l'un sans l'autre.
+  double get _montant {
+    final formule = _formuleMontant;
+    if (formule != null) {
+      final calcule = Formule.essayer(formule, _variables);
+      if (calcule != null) return calcule.toDouble();
+    }
+    return ReglesMetier.montantDepense(
+      nbJrMois: double.tryParse(_nbJrMois.text.replaceAll(',', '.')) ?? 0,
+      quantite: double.tryParse(_quantite.text.replaceAll(',', '.')) ?? 0,
+      frequence: double.tryParse(_frequence.text.replaceAll(',', '.')) ?? 1,
+      pu: double.tryParse(_pu.text.replaceAll(',', '.')) ?? 0,
+    );
+  }
 
   Future<void> _choisirDate({required bool piece}) async {
     final choix = await showDatePicker(
@@ -461,13 +540,17 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
       codeActivite: drift.Value(_codeActivite.text.trim()),
       codeBudget: drift.Value(_codeBudget.text.trim()),
       designation: drift.Value(_designation.text.trim()),
+      beneficiaire: drift.Value(_beneficiaire.text.trim()),
       unite: drift.Value(_unite.text.trim()),
-      nbJrMois:
-          drift.Value(double.tryParse(_nbJrMois.text.replaceAll(',', '.')) ?? 0),
-      quantite:
-          drift.Value(double.tryParse(_quantite.text.replaceAll(',', '.')) ?? 0),
-      frequence:
-          drift.Value(double.tryParse(_frequence.text.replaceAll(',', '.')) ?? 1),
+      nbJrMois: drift.Value(
+        double.tryParse(_nbJrMois.text.replaceAll(',', '.')) ?? 0,
+      ),
+      quantite: drift.Value(
+        double.tryParse(_quantite.text.replaceAll(',', '.')) ?? 0,
+      ),
+      frequence: drift.Value(
+        double.tryParse(_frequence.text.replaceAll(',', '.')) ?? 1,
+      ),
       pu: drift.Value(double.tryParse(_pu.text.replaceAll(',', '.')) ?? 0),
       observation: drift.Value(_observation.text.trim()),
     );
@@ -495,7 +578,7 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
         : Column(children: [a, const SizedBox(height: 12), b]);
     final lignesReference =
         ref.watch(valeursListeProvider('LIGNE_BUDGETAIRE')).value ??
-            const <String>[];
+        const <String>[];
     final tarifsReference =
         ref.watch(tousTarifsProvider).value ?? const <TarifReferentiel>[];
     final designations = <String>{
@@ -503,8 +586,7 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
       ...tarifsReference
           .where((t) => t.actif && t.ligneBudgetaire.trim().isNotEmpty)
           .map((t) => t.ligneBudgetaire.trim()),
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     final unites = <String>{
       'personne',
       'jour',
@@ -514,19 +596,24 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
       'litre',
       'mois',
       ...tarifsReference.map((t) => t.unite.trim()),
-    }.where((v) => v.isNotEmpty).toList()
-      ..sort();
-    final codesActivite =
-        ref.watch(activitesCodesProvider).value ?? const [];
-    final existantes =
-        ref.watch(depensesProvider).value ?? const <Depense>[];
-    List<String> distinctes(String Function(Depense) f) => existantes
-        .map(f)
-        .where((v) => v.trim().isNotEmpty)
-        .toSet()
-        .toList();
+    }.where((v) => v.isNotEmpty).toList()..sort();
+    final configuration = ref.watch(configurationProvider);
+    final rubriques = RubriquesBudget.listeAvecConfiguration(
+      configuration,
+      tarifsReference.map((t) => t.rubrique),
+    );
+    final rubriqueDeduite = RubriquesBudget.resoudreAvec(
+      configuration: configuration,
+      ligneBudgetaire: _designation.text,
+      rubriquesReferentiel: rubriques,
+    );
+    final codesActivite = ref.watch(activitesCodesProvider).value ?? const [];
+    final existantes = ref.watch(depensesProvider).value ?? const <Depense>[];
+    List<String> distinctes(String Function(Depense) f) =>
+        existantes.map(f).where((v) => v.trim().isNotEmpty).toSet().toList();
     final refPieces = distinctes((d) => d.refPieceDepense ?? '');
     final dcts = distinctes((d) => d.dctNumero ?? '');
+    final beneficiaires = distinctes((d) => d.beneficiaire ?? '');
     final observations = distinctes((d) => d.observation ?? '');
 
     return AlertDialog(
@@ -548,8 +635,10 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                     child: InputDecorator(
                       decoration: const InputDecoration(
                         labelText: 'Date d\'enregistrement',
-                        suffixIcon:
-                            Icon(Icons.calendar_today_outlined, size: 18),
+                        suffixIcon: Icon(
+                          Icons.calendar_today_outlined,
+                          size: 18,
+                        ),
                       ),
                       child: Text(formatDate(_dateEnregistrement)),
                     ),
@@ -559,8 +648,10 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                     child: InputDecorator(
                       decoration: const InputDecoration(
                         labelText: 'Date pièce comptable',
-                        suffixIcon:
-                            Icon(Icons.calendar_today_outlined, size: 18),
+                        suffixIcon: Icon(
+                          Icons.calendar_today_outlined,
+                          size: 18,
+                        ),
                       ),
                       child: Text(formatDate(_datePiece)),
                     ),
@@ -573,7 +664,8 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                     label: 'Code activité *',
                     valeurs: codesActivite,
                     prefixIcon: Icons.confirmation_number_outlined,
-                    helperText: 'Auto-incrémenté, modifiable — le code budget '
+                    helperText:
+                        'Auto-incrémenté, modifiable — le code budget '
                         'est pré-rempli automatiquement',
                     onChanged: _remplirCodeBudget,
                     validator: (v) =>
@@ -588,9 +680,14 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                     items: const [
                       DropdownMenuItem(value: 'Espèce', child: Text('Espèce')),
                       DropdownMenuItem(value: 'Chèque', child: Text('Chèque')),
-                      DropdownMenuItem(value: 'Virement', child: Text('Virement')),
                       DropdownMenuItem(
-                          value: 'Mobile Money', child: Text('Mobile Money')),
+                        value: 'Virement',
+                        child: Text('Virement'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Mobile Money',
+                        child: Text('Mobile Money'),
+                      ),
                       DropdownMenuItem(value: 'Banque', child: Text('Banque')),
                       DropdownMenuItem(value: 'Caisse', child: Text('Caisse')),
                     ],
@@ -618,6 +715,24 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                     helperText: 'Pré-remplie depuis le référentiel',
                   ),
                 ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.category_outlined,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Rubrique (déduite des paramètres) :'
+                        '${rubriqueDeduite.isEmpty ? ' à préciser' : ' $rubriqueDeduite'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 paire(
                   ChampListe(
@@ -627,12 +742,19 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                     prefixIcon: Icons.receipt_outlined,
                   ),
                   ChampListe(
-                    controller: _dct,
-                    label: 'Description des pj',
-                    valeurs: dcts,
-                    hint: 'Facture ou état de paiement',
-                    prefixIcon: Icons.description_outlined,
+                    controller: _beneficiaire,
+                    label: 'Bénéficiaire',
+                    valeurs: beneficiaires,
+                    prefixIcon: Icons.person_outline,
                   ),
+                ),
+                const SizedBox(height: 12),
+                ChampListe(
+                  controller: _dct,
+                  label: 'Description des PJ',
+                  valeurs: dcts,
+                  hint: 'Facture ou état de paiement',
+                  prefixIcon: Icons.description_outlined,
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -656,10 +778,8 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                         controller: _quantite,
                         label: 'Quantité *',
                         onChanged: () => setState(() {}),
-                        validator: (v) => validateurNombrePositif(
-                          v,
-                          champ: 'La quantité',
-                        ),
+                        validator: (v) =>
+                            validateurNombrePositif(v, champ: 'La quantité'),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -668,10 +788,8 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                         controller: _frequence,
                         label: 'Fréquence *',
                         onChanged: () => setState(() {}),
-                        validator: (v) => validateurNombrePositif(
-                          v,
-                          champ: 'La fréquence',
-                        ),
+                        validator: (v) =>
+                            validateurNombrePositif(v, champ: 'La fréquence'),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -691,18 +809,37 @@ class _DepenseDialogState extends ConsumerState<_DepenseDialog> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: 0.4),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     children: [
                       const Icon(Icons.calculate_outlined, size: 20),
                       const SizedBox(width: 10),
-                      Text('Montant calculé : ${formatMontant(_montant)}',
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Montant calculé : ${formatMontant(_montant)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              _formuleMontant == null
+                                  ? 'Calculé par la règle métier '
+                                        '(nb jr/mois × quantité × fréquence × P.U.)'
+                                  : 'Calculé par la formule de la configuration : '
+                                        '$_formuleMontant',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),

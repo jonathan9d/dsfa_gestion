@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 
 import '../../../data/database/database.dart';
 import '../../../domain/rubriques.dart';
+import '../../providers/configuration_providers.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/providers.dart';
 import '../../widgets/common.dart';
@@ -34,8 +35,6 @@ class _Bloc {
   final String rubrique;
   final List<LigneBudget> lignes;
 
-  double get totalPrevisionnel =>
-      lignes.fold<double>(0, (s, l) => s + _previsionnelDe(l));
   double get totalAlloue =>
       lignes.fold<double>(0, (s, l) => s + l.montantAlloue);
   int get nonConfirmees => lignes.where((l) => l.montantAlloue <= 0).length;
@@ -76,18 +75,21 @@ class _ApercuBudgetDialogState extends ConsumerState<ApercuBudgetDialog> {
 
   /// Regroupe les lignes par rubrique, exactement comme l'export Excel.
   List<_Bloc> _blocs() {
-    final rubriques = RubriquesBudget.depuisTarifs(
+    final configuration = ref.read(configurationProvider);
+    final rubriques = RubriquesBudget.listeAvecConfiguration(
+      configuration,
       (ref.read(tousTarifsProvider).value ?? const <TarifReferentiel>[]).map(
         (t) => t.rubrique,
       ),
     );
     final parRubrique = <String, List<LigneBudget>>{};
     for (final l in widget.lignes) {
-      final r = RubriquesBudget.resoudre(
+      final r = RubriquesBudget.resoudreAvec(
+        configuration: configuration,
         ligneBudgetaire: l.ligneBudgetaire,
         typeBudget: l.typeBudget,
         rubriqueEnregistree: '${_detailsDe(l)['rubrique'] ?? ''}',
-        rubriques: rubriques,
+        rubriquesReferentiel: rubriques,
       );
       parRubrique.putIfAbsent(r, () => []).add(l);
     }
@@ -142,19 +144,10 @@ class _ApercuBudgetDialogState extends ConsumerState<ApercuBudgetDialog> {
   @override
   Widget build(BuildContext context) {
     final blocs = _blocs();
-    final totalPrevisionnel = blocs.fold<double>(
-      0,
-      (s, b) => s + b.totalPrevisionnel,
-    );
-    final totalAlloue = blocs.fold<double>(0, (s, b) => s + b.totalAlloue);
-    final nonConfirmees = blocs.fold<int>(0, (s, b) => s + b.nonConfirmees);
 
     return AlertDialog(
       title: const TitreDialogue(
         'Pré-impression du budget',
-        sousTitre:
-            'Regroupement par rubrique, total pour chaque rubrique — '
-            'identique à l’export Excel.',
         icone: Icons.visibility_outlined,
       ),
       content: SizedBox(
@@ -163,30 +156,6 @@ class _ApercuBudgetDialogState extends ConsumerState<ApercuBudgetDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                _Pastille(label: 'Rubriques', value: '${blocs.length}'),
-                _Pastille(label: 'Lignes', value: '${widget.lignes.length}'),
-                _Pastille(
-                  label: 'Budget prévisionnel',
-                  value: formatMontant(totalPrevisionnel),
-                ),
-                _Pastille(
-                  label: 'Montant alloué confirmé',
-                  value: formatMontant(totalAlloue),
-                  accent: vertValide(context),
-                ),
-                if (nonConfirmees > 0)
-                  _Pastille(
-                    label: 'À confirmer',
-                    value: '$nonConfirmees ligne(s)',
-                    accent: ambreAttention(context),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
             Expanded(
               child: blocs.isEmpty
                   ? const EtatVide(
@@ -201,11 +170,6 @@ class _ApercuBudgetDialogState extends ConsumerState<ApercuBudgetDialog> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _BlocRubrique(bloc: bloc),
                           ),
-                        _Recapitulatif(
-                          blocs: blocs,
-                          totalPrevisionnel: totalPrevisionnel,
-                          totalAlloue: totalAlloue,
-                        ),
                       ],
                     ),
             ),
@@ -274,13 +238,6 @@ class _BlocRubrique extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'Total : ${formatMontant(bloc.totalAlloue)}',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
                 if (!complet) ...[
                   const SizedBox(width: 8),
                   _Etiquette(
@@ -296,6 +253,26 @@ class _BlocRubrique extends StatelessWidget {
             child: bloc.enPostIt
                 ? _PostIts(lignes: bloc.lignes)
                 : _TableauLignes(lignes: bloc.lignes),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Text(
+                  'Total de la rubrique',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  formatMontant(bloc.totalAlloue),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: vertValide(context),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -524,7 +501,7 @@ class _TableauLignes extends StatelessWidget {
         ),
         children: [
           for (final label in const [
-            'Ligne budgétaire',
+            'Désignation',
             'Unité',
             'Quantité',
             'Jours / fréq.',
@@ -616,83 +593,6 @@ class _Cellule extends StatelessWidget {
   );
 }
 
-/// Récapitulatif final : un total par rubrique, puis le total général.
-class _Recapitulatif extends StatelessWidget {
-  const _Recapitulatif({
-    required this.blocs,
-    required this.totalPrevisionnel,
-    required this.totalAlloue,
-  });
-
-  final List<_Bloc> blocs;
-  final double totalPrevisionnel;
-  final double totalAlloue;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.primary.withValues(alpha: 0.45)),
-        color: scheme.primaryContainer.withValues(alpha: 0.25),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Total par rubrique',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
-          ),
-          const SizedBox(height: 8),
-          for (final bloc in blocs)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${bloc.rubrique}  '
-                      '(${bloc.lignes.length} ligne(s))',
-                      style: const TextStyle(fontSize: 12.5),
-                    ),
-                  ),
-                  Text(
-                    formatMontant(bloc.totalAlloue),
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const Divider(height: 18),
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'TOTAL GÉNÉRAL',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
-                ),
-              ),
-              Text(
-                'prévu ${formatMontant(totalPrevisionnel)}   ·   '
-                'alloué ${formatMontant(totalAlloue)}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _Etiquette extends StatelessWidget {
   const _Etiquette({required this.texte, required this.couleur});
   final String texte;
@@ -714,34 +614,6 @@ class _Etiquette extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _Pastille extends StatelessWidget {
-  const _Pastille({required this.label, required this.value, this.accent});
-  final String label;
-  final String value;
-  final Color? accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final couleur = accent ?? scheme.onSurface;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.primaryContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        '$label : $value',
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 12.5,
-          color: couleur,
-        ),
-      ),
-    );
-  }
 }
 
 String _nombre(num v) =>

@@ -1,8 +1,12 @@
 import 'dart:math' as math;
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
+import '../../domain/configuration/configuration_app.dart';
+import '../providers/providers.dart';
 import '../reglages/reglages_affichage.dart';
 import 'common.dart';
 
@@ -14,6 +18,7 @@ class ColonneTableau<T> {
   const ColonneTableau({
     required this.label,
     required this.valeur,
+    this.cle,
     this.flex = 1,
     this.cellule,
     this.numerique = false,
@@ -23,6 +28,11 @@ class ColonneTableau<T> {
     this.ajusteLargeur = true,
     this.largeurMin,
   });
+
+  /// Clé du champ dans la **configuration** (`date`, `montant`…) : elle
+  /// permet à l'utilisateur de renommer, masquer, réordonner et redimensionner
+  /// la colonne depuis l'onglet Configuration, sans toucher au code.
+  final String? cle;
 
   /// Libellé affiché dans l'en-tête (et dans les cartes sur petit écran).
   final String label;
@@ -57,6 +67,24 @@ class ColonneTableau<T> {
   /// Baisser ce plancher permet à une colonne étroite (petite case de date,
   /// case à cocher…) de libérer de la place pour les autres colonnes.
   final double? largeurMin;
+
+  /// Même colonne avec le **titre et la largeur choisis dans la configuration**.
+  ColonneTableau<T> personnalisee({
+    required String libelle,
+    required double largeur,
+  }) => ColonneTableau<T>(
+    label: libelle,
+    valeur: valeur,
+    cle: cle,
+    flex: flex,
+    cellule: cellule,
+    numerique: numerique,
+    cleTri: cleTri,
+    triable: triable,
+    filtrable: filtrable,
+    ajusteLargeur: ajusteLargeur,
+    largeurMin: largeur.clamp(40, 800),
+  );
 }
 
 /// Action disponible sur une ligne (colonne « Actions »).
@@ -108,7 +136,7 @@ class _Disposition {
 ///   totaux calculés en bas et suppression groupée ;
 /// * **pagination** avec bouton « Tout afficher » (aucun découpage) ;
 /// * **messages clairs** lorsqu'il n'y a rien à afficher.
-class TableauGestion<T> extends StatefulWidget {
+class TableauGestion<T> extends ConsumerStatefulWidget {
   const TableauGestion({
     required this.colonnes,
     required this.lignes,
@@ -124,8 +152,14 @@ class TableauGestion<T> extends StatefulWidget {
     this.seuilCartes = 780,
     this.hauteur,
     this.onSupprimer,
+    this.cleModule,
     super.key,
   });
+
+  /// Clé du module dans la **configuration** : les colonnes sont alors
+  /// renommées, masquées, réordonnées et dimensionnées selon les réglages de
+  /// l'utilisateur (les colonnes sans clé restent affichées).
+  final String? cleModule;
 
   final List<ColonneTableau<T>> colonnes;
   final List<T> lignes;
@@ -154,10 +188,10 @@ class TableauGestion<T> extends StatefulWidget {
   final Future<void> Function(List<T> lignes)? onSupprimer;
 
   @override
-  State<TableauGestion<T>> createState() => _TableauGestionState<T>();
+  ConsumerState<TableauGestion<T>> createState() => _TableauGestionState<T>();
 }
 
-class _TableauGestionState<T> extends State<TableauGestion<T>> {
+class _TableauGestionState<T> extends ConsumerState<TableauGestion<T>> {
   static const double _largeurSelection = 44;
   static final _fmtNombre = NumberFormat('#,##0.##', 'fr_FR');
 
@@ -181,6 +215,11 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
   bool _aGauche = true;
   bool _aDroite = true;
   List<double>? _largeurs;
+  final Map<String, double> _largeursAjustees = {};
+  final GlobalKey _cleContenu = GlobalKey();
+  double? _hauteurAjustee;
+  double _hauteurDebutGlissement = 0;
+  double _variationHauteur = 0;
   double _echelleMesuree = 1.0;
 
   /// Mode sélection (cases à cocher visibles).
@@ -195,16 +234,183 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
 
   bool _defilable = false;
 
+  /// Colonnes **effectives** : celles déclarées par l'écran, ajustées aux
+  /// réglages de la configuration (titre, largeur, ordre, visibilité).
+  List<ColonneTableau<T>> _colonnes = const [];
+
   @override
   void initState() {
     super.initState();
     _defilement.addListener(_surDefilement);
     _defilementHorizontal.addListener(_surDefilementHorizontal);
+    _chargerDimensions();
+  }
+
+  String? get _cleDimensions => widget.cleModule == null
+      ? null
+      : 'tableau_dimensions_${widget.cleModule}';
+
+  String _cleColonne(int index) =>
+      _colonnes[index].cle ?? 'colonne_${_colonnes[index].label}';
+
+  Future<void> _chargerDimensions() async {
+    final cle = _cleDimensions;
+    if (cle == null) return;
+    try {
+      final brut = await ref.read(parametresRepositoryProvider).lire(cle);
+      if (brut == null || brut.trim().isEmpty) return;
+      final donnees = (jsonDecode(brut) as Map).cast<String, dynamic>();
+      final largeurs = donnees['largeurs'];
+      if (largeurs is Map) {
+        for (final entree in largeurs.entries) {
+          final largeur = (entree.value as num?)?.toDouble();
+          if (largeur != null) {
+            _largeursAjustees['${entree.key}'] = largeur.clamp(40, 800);
+          }
+        }
+      }
+      final hauteur = (donnees['hauteur'] as num?)?.toDouble();
+      if (hauteur != null) _hauteurAjustee = hauteur.clamp(220, 1400);
+      if (mounted) setState(() => _largeurs = null);
+    } catch (error) {
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          notifier(
+            context,
+            'Dimensions personnalisées du tableau illisibles : $error',
+            erreur: true,
+          );
+        });
+      }
+    }
+  }
+
+  Future<void> _enregistrerDimensions() async {
+    final cle = _cleDimensions;
+    if (cle == null) return;
+    try {
+      await ref
+          .read(parametresRepositoryProvider)
+          .ecrire(
+            cle,
+            jsonEncode({
+              'largeurs': _largeursAjustees,
+              'hauteur': _hauteurAjustee,
+            }),
+          );
+    } catch (error) {
+      if (mounted) {
+        notifier(
+          context,
+          'Impossible d’enregistrer les dimensions du tableau : $error',
+          erreur: true,
+        );
+      }
+    }
+  }
+
+  void _redimensionnerColonne(int index, double delta) {
+    final cle = _cleColonne(index);
+    final largeur =
+        _largeursAjustees[cle] ??
+        _largeursSouhaitees(
+          MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling,
+        )[index];
+    setState(() {
+      _largeursAjustees[cle] = (largeur + delta).clamp(40, 800);
+      _largeurs = null;
+    });
+  }
+
+  void _commencerRedimensionnementVertical() {
+    final rendu = _cleContenu.currentContext?.findRenderObject();
+    if (rendu is RenderBox) _hauteurDebutGlissement = rendu.size.height;
+    _variationHauteur = 0;
+  }
+
+  void _redimensionnerVerticalement(double delta, double maxHeight) {
+    _variationHauteur += delta;
+    final maximum = maxHeight.isFinite ? maxHeight : 1400.0;
+    final minimum = math.min(220.0, maximum);
+    setState(() {
+      _hauteurAjustee = (_hauteurDebutGlissement + _variationHauteur).clamp(
+        minimum,
+        maximum,
+      );
+    });
+  }
+
+  /// Applique la configuration du module : les colonnes masquées disparaissent,
+  /// les titres et largeurs choisis sont utilisés, l'ordre suit celui des
+  /// champs. Une colonne absente de la configuration reste affichée.
+  List<ColonneTableau<T>> _colonnesConfigurees() {
+    final cleModule = widget.cleModule;
+    if (cleModule == null) return widget.colonnes;
+    final module = ConfigurationApp.of(context).module(cleModule);
+    if (module == null) return widget.colonnes;
+    final parCle = <String, ColonneTableau<T>>{};
+    for (final colonne in widget.colonnes) {
+      final cle = colonne.cle;
+      if (cle != null && cle.isNotEmpty) parCle[cle] = colonne;
+    }
+    final visibles = <String>{for (final c in module.champsVisibles) c.cle};
+    final resultat = <ColonneTableau<T>>[];
+    for (final champ in module.champsVisibles) {
+      final colonne = parCle[champ.cle];
+      if (colonne == null) continue;
+      resultat.add(
+        colonne.personnalisee(libelle: champ.libelle, largeur: champ.largeur),
+      );
+    }
+    for (final colonne in widget.colonnes) {
+      final cle = colonne.cle;
+      if (cle == null || cle.isEmpty) {
+        resultat.add(colonne);
+        continue;
+      }
+      // Champ de la configuration masqué par l'utilisateur : colonne retirée.
+      if (module.champs.any((c) => c.cle == cle)) continue;
+      // Colonne inconnue de la configuration : toujours affichée.
+      if (!visibles.contains(cle)) resultat.add(colonne);
+    }
+    return resultat.isEmpty ? widget.colonnes : resultat;
+  }
+
+  /// La **structure** des colonnes est-elle inchangée (mêmes colonnes, mêmes
+  /// titres) ? Les fermetures des cellules, elles, capturent l'état de l'écran
+  /// (activité sélectionnée, total…) : elles sont donc reprises à chaque
+  /// construction, sans rester figées sur des valeurs périmées.
+  bool _memeStructure(List<ColonneTableau<T>> a, List<ColonneTableau<T>> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].label != b[i].label ||
+          a[i].cle != b[i].cle ||
+          a[i].largeurMin != b[i].largeurMin) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Recalcule les colonnes effectives : la **configuration** de l'utilisateur
+  /// (titres, largeurs, ordre, colonnes masquées) appliquée aux colonnes
+  /// déclarées par l'écran. Les largeurs mesurées ne sont réinitialisées que
+  /// si la disposition change vraiment.
+  void _rafraichirColonnes() {
+    final colonnes = _colonnesConfigurees();
+    if (!_memeStructure(_colonnes, colonnes)) {
+      _largeurs = null;
+      _mesures.clear();
+      _selection.clear();
+    }
+    _colonnes = colonnes;
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _rafraichirColonnes();
     // Les filtres sont ouverts/fermés d'après le réglage global, appliqué
     // immédiatement à tous les tableaux ouverts.
     final ouverts = ReglagesAffichage.of(context).filtresOuverts;
@@ -223,7 +429,8 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
     // Les colonnes sont dimensionnées d'après le contenu : on recalcule
     // quand les données ou les colonnes changent.
     if (oldWidget.lignes != widget.lignes ||
-        oldWidget.colonnes != widget.colonnes) {
+        oldWidget.colonnes != widget.colonnes ||
+        oldWidget.cleModule != widget.cleModule) {
       _largeurs = null;
       _mesures.clear();
       if (_selection.isNotEmpty) {
@@ -327,7 +534,10 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
       _mesures.clear();
       _largeurs = _calculerLargeurs(scaler);
     }
-    return _largeurs!;
+    return [
+      for (var i = 0; i < _largeurs!.length; i++)
+        _largeursAjustees[_cleColonne(i)] ?? _largeurs![i],
+    ];
   }
 
   /// Largeur exacte nécessaire à chaque colonne : la mesure porte sur **toutes**
@@ -339,7 +549,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
     const styleCellule = TextStyle(fontSize: 13);
     const marge = 12.0;
     final resultat = <double>[];
-    for (final colonne in widget.colonnes) {
+    for (final colonne in _colonnes) {
       var largeur = _mesurer(colonne.label, styleEntete, scaler) + marge;
       var compteur = 0;
       for (final ligne in widget.lignes) {
@@ -424,7 +634,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
     if (_aDesFiltres) {
       liste = liste.where((ligne) {
         for (final entree in _filtres.entries) {
-          final colonne = widget.colonnes[entree.key];
+          final colonne = _colonnes[entree.key];
           final texte = colonne.valeur(ligne).toLowerCase();
           final recherche = entree.value.trim().toLowerCase();
           if (!texte.contains(recherche)) return false;
@@ -434,7 +644,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
     }
     final colonneTri = _triColonne;
     if (colonneTri != null) {
-      final colonne = widget.colonnes[colonneTri];
+      final colonne = _colonnes[colonneTri];
       final triees = [...liste];
       triees.sort((a, b) {
         final comparaison = _comparer(colonne, a, b);
@@ -548,8 +758,8 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
   List<({String label, double somme})> _totaux(List<T> lignes) {
     if (lignes.isEmpty) return const [];
     final resultat = <({String label, double somme})>[];
-    for (var i = 0; i < widget.colonnes.length; i++) {
-      final colonne = widget.colonnes[i];
+    for (var i = 0; i < _colonnes.length; i++) {
+      final colonne = _colonnes[i];
       if (!colonne.numerique) continue;
       var somme = 0.0;
       var trouve = false;
@@ -584,11 +794,62 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
 
   // --- Construction ------------------------------------------------------
 
+  /// Les colonnes sont recalculées **à chaque construction** : une cellule qui
+  /// ouvre un dialogue (jours d'activité, fiche d'indemnité…) reçoit toujours
+  /// l'état courant de l'écran, jamais une version périmée.
+  void _avantConstruction() => _rafraichirColonnes();
+
   @override
   Widget build(BuildContext context) {
-    final tableau = _corps(context);
-    if (widget.hauteur == null) return tableau;
-    return SizedBox(height: widget.hauteur, child: tableau);
+    _avantConstruction();
+    return LayoutBuilder(
+      builder: (context, contraintes) {
+        final maximum = contraintes.maxHeight.isFinite
+            ? contraintes.maxHeight
+            : 1400.0;
+        final minimum = math.min(220.0, maximum);
+        final demandee = _hauteurAjustee ?? widget.hauteur;
+        final hauteur = demandee?.clamp(minimum, maximum);
+        final tableau = KeyedSubtree(
+          key: _cleContenu,
+          child: hauteur == null
+              ? _corps(context)
+              : SizedBox(height: hauteur, child: _corps(context)),
+        );
+        return Stack(
+          key: const ValueKey('tableau-redimensionnable'),
+          clipBehavior: Clip.none,
+          children: [
+            tableau,
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeDownRight,
+                child: GestureDetector(
+                  key: const ValueKey('poignee-redimensionnement-vertical'),
+                  behavior: HitTestBehavior.opaque,
+                  onPanStart: (_) => _commencerRedimensionnementVertical(),
+                  onPanUpdate: (details) => _redimensionnerVerticalement(
+                    details.delta.dy,
+                    contraintes.maxHeight,
+                  ),
+                  onPanEnd: (_) => _enregistrerDimensions(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Icon(
+                      Icons.drag_handle,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _corps(BuildContext context) {
@@ -622,6 +883,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
           modeCartes: modeCartes,
           filtres: _afficherFiltres && widget.lignes.isNotEmpty,
           aDesLignes: aDesLignes,
+          pagination: pages > 1,
         );
         final modeRemplissage =
             contraintes.maxHeight.isFinite &&
@@ -697,8 +959,10 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
                 const SizedBox(height: 6),
                 _barreSelection(context, filtrees),
               ],
-              const SizedBox(height: 6),
-              _pied(context, total, pages, pageCourante, lignesPage),
+              if (pages > 1) ...[
+                const SizedBox(height: 6),
+                _pied(context, total, pages, pageCourante, lignesPage),
+              ],
             ],
           ],
         );
@@ -720,6 +984,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
     required bool modeCartes,
     required bool filtres,
     required bool aDesLignes,
+    required bool pagination,
   }) {
     // Barre d'outils + écart.
     var hauteur = 48.0 + 8;
@@ -730,10 +995,10 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
       if (filtres) hauteur += 56 + 6;
       hauteur += 38 /* en-tête */ + lignes * 38 + 2;
     }
-    if (aDesLignes) {
+    if (aDesLignes && pagination) {
       hauteur += 6 + 44; // pied (pagination)
-      if (_modeSelection) hauteur += 6 + 46; // barre de sélection
     }
+    if (aDesLignes && _modeSelection) hauteur += 6 + 46;
     return hauteur;
   }
 
@@ -924,8 +1189,43 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
               width: _largeurSelection,
               child: _caseToutSelectionner(context, _lignesAffichees),
             ),
-          for (var i = 0; i < widget.colonnes.length; i++)
-            SizedBox(width: d.largeurs[i], child: _enteteColonne(context, i)),
+          for (var i = 0; i < _colonnes.length; i++)
+            SizedBox(
+              width: d.largeurs[i],
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _enteteColonne(context, i),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.resizeColumn,
+                      child: GestureDetector(
+                        key: ValueKey('poignee-colonne-$i'),
+                        behavior: HitTestBehavior.translucent,
+                        onPanUpdate: (details) =>
+                            _redimensionnerColonne(i, details.delta.dx),
+                        onPanEnd: (_) => _enregistrerDimensions(),
+                        child: SizedBox(
+                          width: 10,
+                          child: Center(
+                            child: Container(
+                              width: 2,
+                              height: 20,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outlineVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (widget.actions.isNotEmpty)
             SizedBox(
               width: _largeurActions,
@@ -965,7 +1265,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
   }
 
   Widget _enteteColonne(BuildContext context, int index) {
-    final colonne = widget.colonnes[index];
+    final colonne = _colonnes[index];
     final scheme = Theme.of(context).colorScheme;
     final actif = _triColonne == index;
     final contenu = Row(
@@ -1032,12 +1332,12 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
       child: Row(
         children: [
           if (_modeSelection) const SizedBox(width: _largeurSelection),
-          for (var i = 0; i < widget.colonnes.length; i++)
+          for (var i = 0; i < _colonnes.length; i++)
             SizedBox(
               width: d.largeurs[i],
               child: Padding(
                 padding: const EdgeInsets.only(left: 6, right: 6),
-                child: widget.colonnes[i].filtrable
+                child: _colonnes[i].filtrable
                     ? _filtreColonne(context, i)
                     : const SizedBox.shrink(),
               ),
@@ -1049,7 +1349,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
   }
 
   Widget _filtreColonne(BuildContext context, int index) {
-    final colonne = widget.colonnes[index];
+    final colonne = _colonnes[index];
     final controleur = _controleur(index);
     final valeurs = <String>{
       for (final l in widget.lignes)
@@ -1125,7 +1425,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
                   ),
                 ),
               ),
-            for (var i = 0; i < widget.colonnes.length; i++)
+            for (var i = 0; i < _colonnes.length; i++)
               SizedBox(
                 width: d.largeurs[i],
                 child: Padding(
@@ -1134,10 +1434,10 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
                     vertical: 4,
                   ),
                   child: Align(
-                    alignment: widget.colonnes[i].numerique
+                    alignment: _colonnes[i].numerique
                         ? Alignment.centerRight
                         : Alignment.centerLeft,
-                    child: _contenuCellule(context, widget.colonnes[i], ligne),
+                    child: _contenuCellule(context, _colonnes[i], ligne),
                   ),
                 ),
               ),
@@ -1219,14 +1519,14 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
   Widget _carte(BuildContext context, T ligne, int index) {
     final scheme = Theme.of(context).colorScheme;
     final pertinentes = [
-      for (var i = 0; i < widget.colonnes.length; i++)
-        if (widget.colonnes[i].valeur(ligne).trim().isNotEmpty ||
-            widget.colonnes[i].cellule != null)
+      for (var i = 0; i < _colonnes.length; i++)
+        if (_colonnes[i].valeur(ligne).trim().isNotEmpty ||
+            _colonnes[i].cellule != null)
           i,
     ];
     final titre = pertinentes.isEmpty
         ? 'Ligne ${index + 1}'
-        : widget.colonnes[pertinentes.first].valeur(ligne);
+        : _colonnes[pertinentes.first].valeur(ligne);
     return Card(
       margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       child: Padding(
@@ -1274,7 +1574,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
                     SizedBox(
                       width: 130,
                       child: Text(
-                        widget.colonnes[i].label,
+                        _colonnes[i].label,
                         style: TextStyle(
                           fontSize: 12,
                           color: scheme.onSurfaceVariant,
@@ -1283,11 +1583,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: _contenuCellule(
-                        context,
-                        widget.colonnes[i],
-                        ligne,
-                      ),
+                      child: _contenuCellule(context, _colonnes[i], ligne),
                     ),
                   ],
                 ),
@@ -1303,7 +1599,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
   Widget _barreSelection(BuildContext context, List<T> filtrees) {
     final scheme = Theme.of(context).colorScheme;
     final selectionnees = _lignesSelectionnees(filtrees);
-    final base = selectionnees.isNotEmpty ? selectionnees : filtrees;
+    final base = selectionnees;
     final totaux = _totaux(base);
 
     return Container(
@@ -1327,8 +1623,7 @@ class _TableauGestionState<T> extends State<TableauGestion<T>> {
               const SizedBox(width: 6),
               Text(
                 selectionnees.isEmpty
-                    ? 'Aucune ligne sélectionnée — total affiché sur les '
-                          '${filtrees.length} ligne(s) affichée(s)'
+                    ? 'Aucune ligne sélectionnée — total : 0'
                     : '${selectionnees.length} ligne(s) sélectionnée(s)',
                 style: TextStyle(
                   fontSize: 12.5,

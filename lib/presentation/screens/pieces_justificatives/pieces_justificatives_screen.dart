@@ -47,6 +47,7 @@ class _PiecesJustificativesScreenState
         if (!widget.imbrique)
           const EnTetePage(
             titre: 'Pièces justificatives',
+            module: 'dossier_pj',
             sousTitre:
                 'Contrôle des PJ : écarts, cohérence des dates, budget et présence',
           ),
@@ -167,9 +168,7 @@ class _PiecesJustificativesScreenState
               // filtre).
               final parActivite = activite == null
                   ? liste
-                  : liste
-                        .where((e) => e.$1.activiteCode == activite)
-                        .toList();
+                  : liste.where((e) => e.$1.activiteCode == activite).toList();
               if (parActivite.isEmpty) {
                 return EtatVide(
                   message:
@@ -251,8 +250,10 @@ class _BandeauTotaux extends StatelessWidget {
     final alloue = resultats.fold<double>(0, (s, e) => s + e.$1.montantAlloue);
     final paye = resultats.fold<double>(0, (s, e) => s + e.$1.montantPaye);
     final pj = resultats.fold<double>(0, (s, e) => s + e.$1.montantPJ);
-    final ecartBudget =
-        resultats.fold<double>(0, (s, e) => s + e.$2.ecartBudget);
+    final ecartBudget = resultats.fold<double>(
+      0,
+      (s, e) => s + e.$2.ecartBudget,
+    );
     final ecartPJ = resultats.fold<double>(0, (s, e) => s + e.$2.ecartPJ);
     Color equilibre(double v) =>
         v.abs() <= 0.000001 ? vertValide(context) : rougeAlerte(context);
@@ -386,8 +387,14 @@ class _SyntheseStatuts extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
-          _compteur(context, scheme, 'Tous', resultats.length, null,
-              StatutControle.aVerifier),
+          _compteur(
+            context,
+            scheme,
+            'Tous',
+            resultats.length,
+            null,
+            StatutControle.aVerifier,
+          ),
           for (final statut in _statuts)
             _compteur(
               context,
@@ -494,7 +501,8 @@ class _CarteControle extends ConsumerWidget {
                         [
                           if ((controle.ligneBudgetaire ?? '').isNotEmpty)
                             controle.ligneBudgetaire!,
-                          if ((controle.typePJ ?? '').isNotEmpty) controle.typePJ!,
+                          if ((controle.typePJ ?? '').isNotEmpty)
+                            controle.typePJ!,
                           if (controle.datePJ != null)
                             'PJ du ${formatDate(controle.datePJ)}',
                         ].join(' · '),
@@ -610,7 +618,10 @@ class _CarteControle extends ConsumerWidget {
               spacing: 32,
               runSpacing: 14,
               children: [
-                _Montant(label: 'Budget alloué', valeur: controle.montantAlloue),
+                _Montant(
+                  label: 'Budget alloué',
+                  valeur: controle.montantAlloue,
+                ),
                 _Montant(label: 'Montant payé', valeur: controle.montantPaye),
                 _Montant(label: 'Montant PJ', valeur: controle.montantPJ),
                 _Montant(
@@ -746,9 +757,8 @@ class _AnalyseControlePJ extends StatelessWidget {
     );
     final datesRenseignees =
         dateDebut != null && dateFin != null && datePJ != null;
-    final periodeValide = dateDebut == null ||
-        dateFin == null ||
-        !dateFin!.isBefore(dateDebut!);
+    final periodeValide =
+        dateDebut == null || dateFin == null || !dateFin!.isBefore(dateDebut!);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -762,8 +772,11 @@ class _AnalyseControlePJ extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.rule_outlined,
-                  size: 18, color: theme.colorScheme.primary),
+              Icon(
+                Icons.rule_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
@@ -789,7 +802,9 @@ class _AnalyseControlePJ extends StatelessWidget {
           _Verif(
             ok: !datesRenseignees || datePJOk,
             label: 'Date PJ ≥ fin d’activité',
-            valeur: datePJOk ? 'Oui' : (datesRenseignees ? 'Non' : 'À compléter'),
+            valeur: datePJOk
+                ? 'Oui'
+                : (datesRenseignees ? 'Non' : 'À compléter'),
           ),
           const SizedBox(height: 4),
           _Verif(
@@ -888,8 +903,7 @@ class _ControlePJDialogState extends ConsumerState<_ControlePJDialog> {
   /// Sélection d'une activité : reprend automatiquement ses dates et son
   /// montant alloué, pour éviter les ressaisies et les incohérences.
   void _surActivite(String code) {
-    final activites =
-        ref.read(activitesProvider).value ?? const <Activite>[];
+    final activites = ref.read(activitesProvider).value ?? const <Activite>[];
     for (final a in activites) {
       if (a.code == code.trim()) {
         setState(() {
@@ -1021,8 +1035,8 @@ class _ControlePJDialogState extends ConsumerState<_ControlePJDialog> {
       pjRecue = recues == _checklist.length
           ? OuiNon.oui
           : recues == 0
-              ? OuiNon.non
-              : OuiNon.aCompleter;
+          ? OuiNon.non
+          : OuiNon.aCompleter;
     }
     final repo = ref.read(controlesPJRepositoryProvider);
     final companion = ControlesPJCompanion(
@@ -1151,8 +1165,7 @@ class _ControlePJDialogState extends ConsumerState<_ControlePJDialog> {
                     label: 'Ligne budgétaire *',
                     valeurs: lignes,
                     prefixIcon: Icons.receipt_outlined,
-                    onChanged: (_) =>
-                        _reprendreBudgetAlloue(silencieux: true),
+                    onChanged: (_) => _reprendreBudgetAlloue(silencieux: true),
                     validator: (v) =>
                         validateurObligatoire(v, champ: 'La ligne budgétaire'),
                   ),
@@ -1282,10 +1295,10 @@ class _ControlePJDialogState extends ConsumerState<_ControlePJDialog> {
                   checklist: _checklist,
                   onAutoRemplir: _verifierDatesSelonRegles,
                   onBasculer: (piece, champ) => setState(() {
-                    final etat = _checklist.putIfAbsent(piece, () => {
-                          _cleRecue: false,
-                          _cleDate: false,
-                        });
+                    final etat = _checklist.putIfAbsent(
+                      piece,
+                      () => {_cleRecue: false, _cleDate: false},
+                    );
                     etat[champ] = !(etat[champ] ?? false);
                   }),
                 ),
@@ -1383,7 +1396,9 @@ class _ChecklistPJRequises extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.35,
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -1391,8 +1406,11 @@ class _ChecklistPJRequises extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.rule_folder_outlined, size: 18,
-                  color: theme.colorScheme.primary),
+              Icon(
+                Icons.rule_folder_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
@@ -1407,10 +1425,11 @@ class _ChecklistPJRequises extends StatelessWidget {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: (conformes == pieces.length
-                            ? vertValide(context)
-                            : ambreAttention(context))
-                        .withValues(alpha: 0.14),
+                    color:
+                        (conformes == pieces.length
+                                ? vertValide(context)
+                                : ambreAttention(context))
+                            .withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -1461,8 +1480,7 @@ class _ChecklistPJRequises extends StatelessWidget {
                 child: DropdownButtonFormField<String?>(
                   initialValue: sousRubrique,
                   isExpanded: true,
-                  decoration:
-                      const InputDecoration(labelText: 'Sous-rubrique'),
+                  decoration: const InputDecoration(labelText: 'Sous-rubrique'),
                   items: [
                     const DropdownMenuItem(value: null, child: Text('Toutes')),
                     for (final sr in sousRubriques)
@@ -1481,8 +1499,10 @@ class _ChecklistPJRequises extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (pieces.isEmpty)
-            Text('Aucune pièce définie pour cette rubrique.',
-                style: theme.textTheme.bodySmall)
+            Text(
+              'Aucune pièce définie pour cette rubrique.',
+              style: theme.textTheme.bodySmall,
+            )
           else
             _TableauChecklist(
               evaluations: evaluations,
@@ -1536,23 +1556,29 @@ class _TableauChecklist extends StatelessWidget {
               children: [
                 Expanded(
                   flex: 5,
-                  child: Text('PJ requise',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  child: Text(
+                    'PJ requise',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                    ),
+                  ),
                 ),
                 SizedBox(
                   width: 96,
-                  child: Text('PJ reçue',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 12)),
+                  child: Text(
+                    'PJ reçue',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
                 ),
                 SizedBox(
                   width: 110,
-                  child: Text('Date PJ conforme',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 12)),
+                  child: Text(
+                    'Date PJ conforme',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -1662,11 +1688,7 @@ class _LigneChecklist extends StatelessWidget {
 
 /// Case « oui / non » affichée par une croix verte (✓) ou rouge (✗).
 class _Croix extends StatelessWidget {
-  const _Croix({
-    required this.valeur,
-    required this.libelle,
-    this.onTap,
-  });
+  const _Croix({required this.valeur, required this.libelle, this.onTap});
 
   final bool valeur;
   final String libelle;

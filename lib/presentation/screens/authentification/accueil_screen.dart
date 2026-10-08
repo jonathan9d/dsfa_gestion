@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../providers/app_providers.dart';
 import '../../providers/providers.dart';
 import '../../router/app_router.dart';
 import '../../widgets/common.dart';
@@ -42,10 +41,11 @@ class _AccueilScreenState extends ConsumerState<AccueilScreen>
   /// Prénom (ou nom) du dernier utilisateur connu.
   String? _destinataire;
 
-  /// Vrai le matin et l'après-midi, faux en soirée.
-  bool get _estJour => DateTime.now().hour < 18;
-
-  String get _salutation => _estJour ? 'Bonjour' : 'Bonsoir';
+  String get _salutation => switch (DateTime.now().hour) {
+    < 12 => 'Bonjour',
+    < 18 => 'Bon après-midi',
+    _ => 'Bonsoir',
+  };
 
   @override
   void initState() {
@@ -85,8 +85,6 @@ class _AccueilScreenState extends ConsumerState<AccueilScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final creation = ref.watch(configurationCompteProvider).value == false;
-
     return Scaffold(
       body: DecoratedBox(
         decoration: BoxDecoration(
@@ -111,7 +109,7 @@ class _AccueilScreenState extends ConsumerState<AccueilScreen>
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
-                    child: _contenu(creation),
+                    child: _contenu(),
                   ),
                 ),
               ),
@@ -122,7 +120,7 @@ class _AccueilScreenState extends ConsumerState<AccueilScreen>
     );
   }
 
-  Widget _contenu(bool creation) {
+  Widget _contenu() {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final destinataire = _destinataire;
@@ -152,7 +150,7 @@ class _AccueilScreenState extends ConsumerState<AccueilScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    _estJour
+                    DateTime.now().hour < 18
                         ? Icons.wb_sunny_outlined
                         : Icons.nightlight_outlined,
                     size: 30,
@@ -173,33 +171,7 @@ class _AccueilScreenState extends ConsumerState<AccueilScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                creation
-                    ? 'Bienvenue ! Commençons par créer le compte '
-                          'administrateur de « DSFA Gestion ».'
-                    : 'Ravi de vous revoir. Votre espace de gestion des '
-                          'activités, budgets et pièces justificatives est prêt.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  height: 1.45,
-                ),
-              ),
             ],
-          ),
-        ),
-        const SizedBox(height: 34),
-        _apparition(
-          0.6,
-          1,
-          Text(
-            'Powered by Jonathan',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-              letterSpacing: 0.4,
-              fontWeight: FontWeight.w600,
-            ),
           ),
         ),
       ],
@@ -210,7 +182,11 @@ class _AccueilScreenState extends ConsumerState<AccueilScreen>
   Widget _apparition(double debut, double fin, Widget enfant) {
     final animation = CurvedAnimation(
       parent: _animation,
-      curve: Interval(debut.clamp(0, 1), fin.clamp(0, 1), curve: Curves.easeOutCubic),
+      curve: Interval(
+        debut.clamp(0, 1),
+        fin.clamp(0, 1),
+        curve: Curves.easeOutCubic,
+      ),
     );
     return FadeTransition(
       opacity: animation,

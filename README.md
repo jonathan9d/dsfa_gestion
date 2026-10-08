@@ -7,8 +7,7 @@ pièces justificatives, dépenses, banque, rapprochement, rapports et paramètre
 Tout fonctionne **hors ligne** : la base de données est un fichier SQLite local,
 et les exports sont écrits là où l'utilisateur le demande.
 
-> Cible de distribution : **Windows 10 / 11 (64 bits)**. La cible Android est
-> présente dans le dépôt mais n'est ni compilée ni distribuée.
+> Seule cible prise en charge et distribuée : **Windows 10 / 11 (64 bits)**.
 
 ---
 
@@ -43,9 +42,8 @@ et les exports sont écrits là où l'utilisateur le demande.
 
 ### Dossier PJ
 - **Onglet « Présences & indemnités »** : un **seul tableau**, une ligne par
-  participant. Le **nombre de jours d'activité se modifie directement dans le
-  tableau** et met à jour la fiche de présence du participant (les N premiers
-  jours de l'activité sont « Présent », les suivants « Absent »).
+  participant. Les jours de présence se sélectionnent individuellement dans
+  le calendrier interactif et mettent à jour la fiche de présence.
 - **Onglet « Pièces justificatives »** : uniquement la **checklist des PJ
   requises**, déduite mot pour mot de la matrice `PARAMETRES` et regroupée par
   rubrique, avec la date de PJ, le contrôle automatique des délais, et l'état
@@ -62,7 +60,7 @@ et les exports sont écrits là où l'utilisateur le demande.
 
 ### Pré-impression et exports
 - Pré-impression du budget **regroupée par rubrique**, avec le **total de
-  chaque rubrique** puis le total général.
+  chaque rubrique affiché à la fin de celle-ci**.
 - Les **fournitures** sont présentées en **post-it** (une ligne = une note).
 - Export Excel cohérent avec la pré-impression : colonne « Rubrique », blocs
   par rubrique, **sous-total par rubrique**, total général.
@@ -71,8 +69,13 @@ et les exports sont écrits là où l'utilisateur le demande.
 
 ### Interface
 - Écran d'accueil qui **salue l'utilisateur avant la connexion**.
-- Thème clair/sombre/système, couleurs primaire et secondaire réglables,
-  échelle de police.
+- Thème clair/sombre/système avec transition douce, couleurs primaire et
+  secondaire réglables, échelle de police, son activable et motif d’arrière-plan
+  discret facultatif.
+- Colonnes et hauteur des tableaux redimensionnables à la souris, avec
+  mémorisation des dimensions par écran.
+- Menu latéral : compteur gris des modifications journalisées et ruban de
+  partenaires animé.
 - Tableaux : **largeurs de colonnes mesurées sur le contenu réel** (aucun mot,
   chiffre ni date coupé), défilement horizontal quand c'est nécessaire, tri par
   clic sur l'en-tête **sans chevron**, filtres **masqués par défaut** (bouton
@@ -81,6 +84,49 @@ et les exports sont écrits là où l'utilisateur le demande.
 - Toutes les saisies sont **vérifiées avant enregistrement** (champs
   obligatoires, listes de référence, dates cohérentes, montants positifs).
 - Journal d'audit des créations, modifications et suppressions.
+- Dépenses : saisie de la référence PJ, du bénéficiaire et du mode de
+  paiement ; ces informations sont conservées dans le journal et les exports.
+- **Configuration de toute l'application** : voir la section
+  [Configuration](#configuration) ci-dessous.
+
+### Configuration
+
+- **Bouton « Configuration »** en haut de chaque onglet : ouvre directement la
+  configuration de l'écran courant.
+- **Onglets & présentation** : titre, sous-titre, icône et couleur de chaque
+  écran ; ordre des onglets, masquage, suppression (avec confirmation) ;
+  création d'un **nouvel onglet**.
+- **Champs & colonnes** : renommer un champ (titre de colonne), changer son
+  type et sa largeur, le masquer, le rendre obligatoire, le déplacer, en ajouter
+  un nouveau ou le supprimer. La suppression d'un champ **parent** demande une
+  **confirmation** et s'applique **en cascade** : les champs enfants sont
+  retirés et les formules qui le référencient sont vidées.
+- **Formules** : expression vérifiée en direct avec aperçu du résultat.
+  Références entre crochets `[montant]`, opérateurs `+ - * / ( )` et fonctions
+  `si`, `min`, `max`, `abs`, `arrondi`, `plafond`, `plancher`, `racine`,
+  `somme`, `moyenne`, `nombre`. Toute erreur est expliquée **en français**
+  (champ inconnu, division par zéro, virgule décimale refusée…).
+- **Statuts & couleurs** : valeur, couleur et icône de chaque statut
+  modifiables, nouvelles valeurs ajoutables — les automatismes (contrôle PJ,
+  rapprochement, suivi) continuent de fonctionner.
+- **Rubriques & lignes** : CRUD des rubriques, classement des lignes
+  budgétaires (par ligne ou « Classer automatiquement » depuis le référentiel),
+  copie des règles PJ d'une rubrique vers une autre, compteurs de lignes et de
+  règles PJ liés. Renommer ou supprimer une rubrique agit **en cascade** sur
+  les lignes budgétaires et les règles PJ.
+- **Nouveaux onglets & icônes** : on choisit le contenu du tableau (les champs
+  affichés) et les actions autorisées (ajouter, modifier, supprimer, rechercher,
+  filtrer, sélectionner, configuration). Pour l'icône : catalogue d'environ 90
+  icônes Material, ou **import d'une image** — format exact : **PNG ou JPEG,
+  carré, 512 × 512 maximum, moins de 400 Ko** (indice : les icônes gratuites
+  sont sur <https://fonts.google.com/icons>).
+
+Les **règles & matrice PJ**, les **districts** et les **tarifs** du classeur
+`parametres.xlsx` restent la source de vérité : la configuration personnalise
+l'affichage et les calculs **sans jamais les contourner**. Elle est enregistrée
+dans la base (clé `configuration_app`) puis **fusionnée avec les valeurs
+livrées** : une mise à jour ajoute les nouveautés sans écraser vos
+personnalisations.
 
 ---
 
@@ -140,6 +186,8 @@ lib/
     database/       tables Drift + base SQLite
     repositories/   accès aux données (activités, budget, présences, PJ…)
   domain/
+    configuration/          champs, formules, statuts, rubriques,
+                            onglets et icônes personnalisables
     regles_metier.dart      règle d'or des indemnités, carburant, écarts
     regles_parametres.dart  lecture de la feuille PARAMETRES (matrice PJ)
     rubriques.dart          résolution des rubriques depuis les paramètres

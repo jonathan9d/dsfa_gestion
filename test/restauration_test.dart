@@ -82,7 +82,9 @@ void main() {
     await db.close();
   });
 
-  test('une sauvegarde dans la même seconde est numérotée', () async {
+  test(
+    'les sauvegardes sont numérotées et l’automatique remplace la récente',
+    () async {
     final base = File('${dir.path}/DSFA.db.sqlite');
     final db = AppDatabase.forTesting(NativeDatabase(base));
     await creerTable(db);
@@ -90,8 +92,13 @@ void main() {
     final service = SauvegardeService(db);
     final a = await service.sauvegarder();
     final b = await service.sauvegarder();
-    expect(a.path == b.path, isFalse);
-    expect((await service.lister()).length, greaterThanOrEqualTo(2));
+    expect(a.uri.pathSegments.last, 'save_1.db');
+    expect(b.uri.pathSegments.last, 'save_2.db');
+    expect(await service.lister(), hasLength(2));
+    final automatique = await service.sauvegarder(automatique: true);
+    expect(automatique.path, b.path);
+    expect(await service.lister(), hasLength(2));
     await db.close();
-  });
+    },
+  );
 }

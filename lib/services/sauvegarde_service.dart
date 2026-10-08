@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 
 import '../data/database/database.dart';
@@ -30,8 +29,8 @@ class SauvegardeService {
   /// Fichier de base actuellement utilisé (affiché dans l'écran Sauvegardes).
   Future<File> fichierBase() => _db.fichierBaseOuverte();
 
-  /// Crée une copie datée de la base et renvoie son chemin.
-  Future<File> sauvegarder() async {
+  /// Crée une sauvegarde séquencée, ou remplace la plus récente à la fermeture.
+  Future<File> sauvegarder({bool automatique = false}) async {
     final source = await _db.fichierBaseOuverte();
     if (!await source.exists()) {
       throw SauvegardeException(
@@ -42,13 +41,27 @@ class SauvegardeService {
       );
     }
     final dir = await dossierSauvegardes();
-    final horodatage = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-    var destination = File(p.join(dir.path, 'DSFA_$horodatage.db'));
-    // Deux sauvegardes dans la même seconde : on numérote la seconde.
-    var suffixe = 1;
-    while (await destination.exists()) {
-      destination = File(p.join(dir.path, 'DSFA_${horodatage}_$suffixe.db'));
-      suffixe++;
+    final precedentes = await lister();
+    var plusGrandNumero = 0;
+    File? derniereSequence;
+    for (final fichier in precedentes) {
+      final match = RegExp(
+        r'^save_(\d+)\.db$',
+        caseSensitive: false,
+      ).firstMatch(p.basename(fichier.path));
+      final numero = int.tryParse(match?.group(1) ?? '');
+      if (numero != null && numero > plusGrandNumero) {
+        plusGrandNumero = numero;
+        derniereSequence = fichier;
+      }
+    }
+    File destination;
+    if (automatique && precedentes.isNotEmpty) {
+      destination = derniereSequence ?? precedentes.first;
+    } else {
+      destination = File(
+        p.join(dir.path, 'save_${plusGrandNumero + 1}.db'),
+      );
     }
     try {
       await source.copy(destination.path);
@@ -64,13 +77,19 @@ class SauvegardeService {
   /// Liste les sauvegardes disponibles, de la plus récente à la plus ancienne.
   Future<List<File>> lister() async {
     final dir = await dossierSauvegardes();
-    final fichiers =
-        dir
-            .listSync()
-            .whereType<File>()
-            .where((f) => f.path.toLowerCase().endsWith('.db'))
-            .toList()
-          ..sort((a, b) => b.path.compareTo(a.path));
+    final fichiers = dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.db'))
+        .toList();
+    final dates = <String, DateTime>{
+      for (final fichier in fichiers)
+        fichier.path: await fichier.lastModified(),
+    };
+    fichiers.sort((a, b) {
+      final parDate = dates[b.path]!.compareTo(dates[a.path]!);
+      return parDate != 0 ? parDate : a.path.compareTo(b.path);
+    });
     return fichiers;
   }
 

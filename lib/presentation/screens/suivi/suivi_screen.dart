@@ -161,6 +161,7 @@ class _SuiviScreenState extends ConsumerState<SuiviScreen> {
         children: [
           EnTetePage(
             titre: 'Suivi',
+            module: 'suivi',
             sousTitre:
                 'Fonds reçus, budget, dépenses, pièces justificatives et rapportage',
             actions: [
@@ -223,6 +224,7 @@ class _SuiviScreenState extends ConsumerState<SuiviScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: TableauGestion<Activite>(
+        cleModule: 'suivi',
         lignes: activites,
         cleLigne: (a) => a.id,
         taillePage: 15,
@@ -230,32 +232,42 @@ class _SuiviScreenState extends ConsumerState<SuiviScreen> {
         colonnes: [
           ColonneTableau(
             label: 'Date',
+            cle: 'date',
             valeur: (a) => formatDate(a.dateDebut),
             cleTri: (a) => a.dateDebut ?? DateTime(1900),
           ),
-          ColonneTableau(label: 'Code activité', valeur: (a) => a.code),
+          ColonneTableau(
+            label: 'Code activité',
+            cle: 'code_activite',
+            valeur: (a) => a.code,
+          ),
           ColonneTableau(
             label: 'Code budget',
+            cle: 'code_budget',
             valeur: (a) => a.codeBudget ?? '',
           ),
           ColonneTableau(
             label: 'Description activité',
+            cle: 'description',
             flex: 3,
             valeur: (a) => a.description,
           ),
           ColonneTableau(
             label: 'Date réception fonds',
+            cle: 'date_reception_fonds',
             largeurMin: 190,
             valeur: (a) => formatDate(_receptionFonds[a.id]),
             cellule: (context, a) => _dateCell(context, a.id, true),
           ),
           ColonneTableau(
             label: 'Source de financement',
+            cle: 'source_financement',
             flex: 2,
             valeur: (a) => a.sourceFinancement ?? '',
           ),
           ColonneTableau(
             label: 'Montant alloué',
+            cle: 'montant_alloue',
             flex: 2,
             numerique: true,
             valeur: (a) => formatMontant(alloue[a.code] ?? 0),
@@ -263,6 +275,7 @@ class _SuiviScreenState extends ConsumerState<SuiviScreen> {
           ),
           ColonneTableau(
             label: 'Dépenses réalisées',
+            cle: 'depenses',
             flex: 2,
             numerique: true,
             valeur: (a) => formatMontant(depense[a.code] ?? 0),
@@ -270,6 +283,7 @@ class _SuiviScreenState extends ConsumerState<SuiviScreen> {
           ),
           ColonneTableau(
             label: 'Écart',
+            cle: 'ecart',
             flex: 2,
             numerique: true,
             valeur: (a) =>
@@ -278,6 +292,7 @@ class _SuiviScreenState extends ConsumerState<SuiviScreen> {
           ),
           ColonneTableau(
             label: 'Date réception PJ',
+            cle: 'date_reception_pj',
             largeurMin: 190,
             valeur: (a) => formatDate(_receptionPJ[a.id]),
             cellule: (context, a) => _celluleDate(
@@ -289,12 +304,14 @@ class _SuiviScreenState extends ConsumerState<SuiviScreen> {
           ),
           ColonneTableau(
             label: 'Date de rapportage',
+            cle: 'date_rapportage',
             largeurMin: 190,
             valeur: (a) => formatDate(_rapportage[a.id]),
             cellule: (context, a) => _dateCell(context, a.id, false),
           ),
           ColonneTableau(
             label: 'Statut',
+            cle: 'statut',
             flex: 2,
             valeur: (a) => _statut(
               bailleur: a.sourceFinancement ?? '',

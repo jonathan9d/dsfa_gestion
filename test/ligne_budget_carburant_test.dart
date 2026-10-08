@@ -146,6 +146,25 @@ void main() {
     await demonter(tester);
   });
 
+  testWidgets('la confirmation du montant alloué peut être annulée', (
+    tester,
+  ) async {
+    await pomper(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Montant alloué (Ar)'),
+      '1000',
+    );
+    await tester.pump();
+    await tester.tap(find.text('Confirmer'));
+    await tester.pump();
+    expect(find.text('Annuler la confirmation'), findsOneWidget);
+
+    await tester.tap(find.text('Annuler la confirmation'));
+    await tester.pump();
+    expect(find.text('Confirmer'), findsOneWidget);
+    await demonter(tester);
+  });
+
   testWidgets(
       'une recherche d’un autre écran ne fausse plus le calcul (référentiel '
       'non filtré)', (tester) async {

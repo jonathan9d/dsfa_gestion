@@ -83,6 +83,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('chaque rubrique affiche son total après ses lignes', (
+    tester,
+  ) async {
+    await _pump(tester, const Size(1366, 768), lignes);
+
+    expect(find.text('Total de la rubrique'), findsNWidgets(2));
+    expect(find.text('Désignation'), findsWidgets);
+    expect(find.text('Ligne budgétaire'), findsNothing);
+    expect(find.text('TOTAL GÉNÉRAL'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('un clic en dehors du dialogue le referme', (tester) async {
     await _pump(tester, const Size(1366, 768), lignes);
     expect(find.text('Pré-impression du budget'), findsOneWidget);

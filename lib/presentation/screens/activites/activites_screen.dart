@@ -35,6 +35,7 @@ class _ActivitesScreenState extends ConsumerState<ActivitesScreen> {
         children: [
           EnTetePage(
             titre: 'Activités',
+            module: 'activites',
             sousTitre: 'Planification, suivi et pilotage des activités',
             actions: [
               FilledButton.icon(
@@ -58,15 +59,16 @@ class _ActivitesScreenState extends ConsumerState<ActivitesScreen> {
                   child: ChampRecherche(
                     controller: _recherche,
                     hint: 'Rechercher par code ou description',
-                    onChanged: (v) => ref
-                        .read(filtreActivitesProvider.notifier)
-                        .state = FiltreActivite(
-                      recherche: v,
-                      annee: filtre.annee,
-                      statut: filtre.statut,
-                      type: filtre.type,
-                      district: filtre.district,
-                    ),
+                    onChanged: (v) =>
+                        ref
+                            .read(filtreActivitesProvider.notifier)
+                            .state = FiltreActivite(
+                          recherche: v,
+                          annee: filtre.annee,
+                          statut: filtre.statut,
+                          type: filtre.type,
+                          district: filtre.district,
+                        ),
                   ),
                 ),
                 const Spacer(),
@@ -111,21 +113,25 @@ class _TableauActivites extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final budgets = ref.watch(toutesLignesBudgetProvider).value ?? const <LigneBudget>[];
+    final budgets =
+        ref.watch(toutesLignesBudgetProvider).value ?? const <LigneBudget>[];
     final montants = <String, double>{};
     for (final l in budgets) {
-      montants[l.activiteCode] = (montants[l.activiteCode] ?? 0) + l.montantAlloue;
+      montants[l.activiteCode] =
+          (montants[l.activiteCode] ?? 0) + l.montantAlloue;
     }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: TableauGestion<Activite>(
+        cleModule: 'activites',
         lignes: activites,
         cleLigne: (a) => a.id,
         messageVide: 'Aucune activité enregistrée.',
         colonnes: [
           ColonneTableau(
             label: 'Code',
+            cle: 'code',
             flex: 2,
             valeur: (a) => a.code,
             cellule: (_, a) => Text(
@@ -135,15 +141,55 @@ class _TableauActivites extends ConsumerWidget {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-          ColonneTableau(label: 'Description', flex: 5, valeur: (a) => a.description),
-          ColonneTableau(label: 'Code budget', flex: 2, valeur: (a) => a.codeBudget ?? ''),
-          ColonneTableau(label: 'Source de financement', flex: 3, valeur: (a) => a.sourceFinancement ?? ''),
-          ColonneTableau(label: 'Lieu d’activité', flex: 3, valeur: (a) => a.district ?? ''),
-          ColonneTableau(label: 'Jours', flex: 1, numerique: true, valeur: (a) => '${a.nombreJours}', cleTri: (a) => a.nombreJours),
-          ColonneTableau(label: 'Début', flex: 2, valeur: (a) => formatDate(a.dateDebut), cleTri: (a) => a.dateDebut),
-          ColonneTableau(label: 'Fin', flex: 2, valeur: (a) => formatDate(a.dateFin), cleTri: (a) => a.dateFin),
+          ColonneTableau(
+            label: 'Description',
+            cle: 'description',
+            flex: 5,
+            valeur: (a) => a.description,
+          ),
+          ColonneTableau(
+            label: 'Code budget',
+            cle: 'code_budget',
+            flex: 2,
+            valeur: (a) => a.codeBudget ?? '',
+          ),
+          ColonneTableau(
+            label: 'Source de financement',
+            cle: 'source_financement',
+            flex: 3,
+            valeur: (a) => a.sourceFinancement ?? '',
+          ),
+          ColonneTableau(
+            label: 'Lieu d’activité',
+            cle: 'lieu',
+            flex: 3,
+            valeur: (a) => a.district ?? '',
+          ),
+          ColonneTableau(
+            label: 'Jours',
+            cle: 'jours',
+            flex: 1,
+            numerique: true,
+            valeur: (a) => '${a.nombreJours}',
+            cleTri: (a) => a.nombreJours,
+          ),
+          ColonneTableau(
+            label: 'Début',
+            cle: 'date_debut',
+            flex: 2,
+            valeur: (a) => formatDate(a.dateDebut),
+            cleTri: (a) => a.dateDebut,
+          ),
+          ColonneTableau(
+            label: 'Fin',
+            cle: 'date_fin',
+            flex: 2,
+            valeur: (a) => formatDate(a.dateFin),
+            cleTri: (a) => a.dateFin,
+          ),
           ColonneTableau(
             label: 'Montant alloué',
+            cle: 'montant_alloue',
             flex: 3,
             numerique: true,
             valeur: (a) => formatMontant(montants[a.code] ?? 0),
@@ -155,8 +201,12 @@ class _TableauActivites extends ConsumerWidget {
             icone: Icons.edit_outlined,
             infobulle: 'Modifier',
             onTap: (a) async {
-              final ok = await ActiviteFormDialog.afficher(context, activite: a);
-              if (ok == true && context.mounted) notifier(context, 'Activité modifiée');
+              final ok = await ActiviteFormDialog.afficher(
+                context,
+                activite: a,
+              );
+              if (ok == true && context.mounted)
+                notifier(context, 'Activité modifiée');
             },
           ),
           ActionTableau<Activite>(
@@ -167,12 +217,15 @@ class _TableauActivites extends ConsumerWidget {
               final ok = await confirmer(
                 context,
                 titre: 'Supprimer l’activité',
-                message: 'Supprimer « ${a.code} » et toutes ses données liées ?',
+                message:
+                    'Supprimer « ${a.code} » et toutes ses données liées ?',
                 confirmerLabel: 'Supprimer',
               );
               if (!ok) return;
               await ref.read(activitesRepositoryProvider).delete(a.id);
-              await ref.read(auditRepositoryProvider).log(
+              await ref
+                  .read(auditRepositoryProvider)
+                  .log(
                     action: 'SUPPRESSION',
                     entite: 'activite',
                     entiteId: a.id.toString(),

@@ -7045,6 +7045,17 @@ class $DepensesTable extends Depenses with TableInfo<$DepensesTable, Depense> {
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _beneficiaireMeta = const VerificationMeta(
+    'beneficiaire',
+  );
+  @override
+  late final GeneratedColumn<String> beneficiaire = GeneratedColumn<String>(
+    'beneficiaire',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _controlePJIdMeta = const VerificationMeta(
     'controlePJId',
   );
@@ -7135,6 +7146,7 @@ class $DepensesTable extends Depenses with TableInfo<$DepensesTable, Depense> {
     codeActivite,
     codeBudget,
     designation,
+    beneficiaire,
     controlePJId,
     unite,
     nbJrMois,
@@ -7239,6 +7251,15 @@ class $DepensesTable extends Depenses with TableInfo<$DepensesTable, Depense> {
         ),
       );
     }
+    if (data.containsKey('beneficiaire')) {
+      context.handle(
+        _beneficiaireMeta,
+        beneficiaire.isAcceptableOrUnknown(
+          data['beneficiaire']!,
+          _beneficiaireMeta,
+        ),
+      );
+    }
     if (data.containsKey('controle_p_j_id')) {
       context.handle(
         _controlePJIdMeta,
@@ -7337,6 +7358,10 @@ class $DepensesTable extends Depenses with TableInfo<$DepensesTable, Depense> {
         DriftSqlType.string,
         data['${effectivePrefix}designation'],
       )!,
+      beneficiaire: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}beneficiaire'],
+      ),
       controlePJId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}controle_p_j_id'],
@@ -7386,6 +7411,7 @@ class Depense extends DataClass implements Insertable<Depense> {
   final String? codeActivite;
   final String? codeBudget;
   final String designation;
+  final String? beneficiaire;
 
   /// Contrôle PJ d'origine quand la ligne est créée/mise à jour par le
   /// dossier PJ (permet d'afficher le statut de conformité de la pièce).
@@ -7408,6 +7434,7 @@ class Depense extends DataClass implements Insertable<Depense> {
     this.codeActivite,
     this.codeBudget,
     required this.designation,
+    this.beneficiaire,
     this.controlePJId,
     this.unite,
     required this.nbJrMois,
@@ -7446,6 +7473,9 @@ class Depense extends DataClass implements Insertable<Depense> {
       map['code_budget'] = Variable<String>(codeBudget);
     }
     map['designation'] = Variable<String>(designation);
+    if (!nullToAbsent || beneficiaire != null) {
+      map['beneficiaire'] = Variable<String>(beneficiaire);
+    }
     if (!nullToAbsent || controlePJId != null) {
       map['controle_p_j_id'] = Variable<int>(controlePJId);
     }
@@ -7491,6 +7521,9 @@ class Depense extends DataClass implements Insertable<Depense> {
           ? const Value.absent()
           : Value(codeBudget),
       designation: Value(designation),
+      beneficiaire: beneficiaire == null && nullToAbsent
+          ? const Value.absent()
+          : Value(beneficiaire),
       controlePJId: controlePJId == null && nullToAbsent
           ? const Value.absent()
           : Value(controlePJId),
@@ -7528,6 +7561,7 @@ class Depense extends DataClass implements Insertable<Depense> {
       codeActivite: serializer.fromJson<String?>(json['codeActivite']),
       codeBudget: serializer.fromJson<String?>(json['codeBudget']),
       designation: serializer.fromJson<String>(json['designation']),
+      beneficiaire: serializer.fromJson<String?>(json['beneficiaire']),
       controlePJId: serializer.fromJson<int?>(json['controlePJId']),
       unite: serializer.fromJson<String?>(json['unite']),
       nbJrMois: serializer.fromJson<double>(json['nbJrMois']),
@@ -7552,6 +7586,7 @@ class Depense extends DataClass implements Insertable<Depense> {
       'codeActivite': serializer.toJson<String?>(codeActivite),
       'codeBudget': serializer.toJson<String?>(codeBudget),
       'designation': serializer.toJson<String>(designation),
+      'beneficiaire': serializer.toJson<String?>(beneficiaire),
       'controlePJId': serializer.toJson<int?>(controlePJId),
       'unite': serializer.toJson<String?>(unite),
       'nbJrMois': serializer.toJson<double>(nbJrMois),
@@ -7574,6 +7609,7 @@ class Depense extends DataClass implements Insertable<Depense> {
     Value<String?> codeActivite = const Value.absent(),
     Value<String?> codeBudget = const Value.absent(),
     String? designation,
+    Value<String?> beneficiaire = const Value.absent(),
     Value<int?> controlePJId = const Value.absent(),
     Value<String?> unite = const Value.absent(),
     double? nbJrMois,
@@ -7603,6 +7639,7 @@ class Depense extends DataClass implements Insertable<Depense> {
     codeActivite: codeActivite.present ? codeActivite.value : this.codeActivite,
     codeBudget: codeBudget.present ? codeBudget.value : this.codeBudget,
     designation: designation ?? this.designation,
+    beneficiaire: beneficiaire.present ? beneficiaire.value : this.beneficiaire,
     controlePJId: controlePJId.present ? controlePJId.value : this.controlePJId,
     unite: unite.present ? unite.value : this.unite,
     nbJrMois: nbJrMois ?? this.nbJrMois,
@@ -7640,6 +7677,9 @@ class Depense extends DataClass implements Insertable<Depense> {
       designation: data.designation.present
           ? data.designation.value
           : this.designation,
+      beneficiaire: data.beneficiaire.present
+          ? data.beneficiaire.value
+          : this.beneficiaire,
       controlePJId: data.controlePJId.present
           ? data.controlePJId.value
           : this.controlePJId,
@@ -7668,6 +7708,7 @@ class Depense extends DataClass implements Insertable<Depense> {
           ..write('codeActivite: $codeActivite, ')
           ..write('codeBudget: $codeBudget, ')
           ..write('designation: $designation, ')
+          ..write('beneficiaire: $beneficiaire, ')
           ..write('controlePJId: $controlePJId, ')
           ..write('unite: $unite, ')
           ..write('nbJrMois: $nbJrMois, ')
@@ -7692,6 +7733,7 @@ class Depense extends DataClass implements Insertable<Depense> {
     codeActivite,
     codeBudget,
     designation,
+    beneficiaire,
     controlePJId,
     unite,
     nbJrMois,
@@ -7715,6 +7757,7 @@ class Depense extends DataClass implements Insertable<Depense> {
           other.codeActivite == this.codeActivite &&
           other.codeBudget == this.codeBudget &&
           other.designation == this.designation &&
+          other.beneficiaire == this.beneficiaire &&
           other.controlePJId == this.controlePJId &&
           other.unite == this.unite &&
           other.nbJrMois == this.nbJrMois &&
@@ -7736,6 +7779,7 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
   final Value<String?> codeActivite;
   final Value<String?> codeBudget;
   final Value<String> designation;
+  final Value<String?> beneficiaire;
   final Value<int?> controlePJId;
   final Value<String?> unite;
   final Value<double> nbJrMois;
@@ -7755,6 +7799,7 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
     this.codeActivite = const Value.absent(),
     this.codeBudget = const Value.absent(),
     this.designation = const Value.absent(),
+    this.beneficiaire = const Value.absent(),
     this.controlePJId = const Value.absent(),
     this.unite = const Value.absent(),
     this.nbJrMois = const Value.absent(),
@@ -7775,6 +7820,7 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
     this.codeActivite = const Value.absent(),
     this.codeBudget = const Value.absent(),
     this.designation = const Value.absent(),
+    this.beneficiaire = const Value.absent(),
     this.controlePJId = const Value.absent(),
     this.unite = const Value.absent(),
     this.nbJrMois = const Value.absent(),
@@ -7795,6 +7841,7 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
     Expression<String>? codeActivite,
     Expression<String>? codeBudget,
     Expression<String>? designation,
+    Expression<String>? beneficiaire,
     Expression<int>? controlePJId,
     Expression<String>? unite,
     Expression<double>? nbJrMois,
@@ -7816,6 +7863,7 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
       if (codeActivite != null) 'code_activite': codeActivite,
       if (codeBudget != null) 'code_budget': codeBudget,
       if (designation != null) 'designation': designation,
+      if (beneficiaire != null) 'beneficiaire': beneficiaire,
       if (controlePJId != null) 'controle_p_j_id': controlePJId,
       if (unite != null) 'unite': unite,
       if (nbJrMois != null) 'nb_jr_mois': nbJrMois,
@@ -7838,6 +7886,7 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
     Value<String?>? codeActivite,
     Value<String?>? codeBudget,
     Value<String>? designation,
+    Value<String?>? beneficiaire,
     Value<int?>? controlePJId,
     Value<String?>? unite,
     Value<double>? nbJrMois,
@@ -7858,6 +7907,7 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
       codeActivite: codeActivite ?? this.codeActivite,
       codeBudget: codeBudget ?? this.codeBudget,
       designation: designation ?? this.designation,
+      beneficiaire: beneficiaire ?? this.beneficiaire,
       controlePJId: controlePJId ?? this.controlePJId,
       unite: unite ?? this.unite,
       nbJrMois: nbJrMois ?? this.nbJrMois,
@@ -7906,6 +7956,9 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
     if (designation.present) {
       map['designation'] = Variable<String>(designation.value);
     }
+    if (beneficiaire.present) {
+      map['beneficiaire'] = Variable<String>(beneficiaire.value);
+    }
     if (controlePJId.present) {
       map['controle_p_j_id'] = Variable<int>(controlePJId.value);
     }
@@ -7944,6 +7997,7 @@ class DepensesCompanion extends UpdateCompanion<Depense> {
           ..write('codeActivite: $codeActivite, ')
           ..write('codeBudget: $codeBudget, ')
           ..write('designation: $designation, ')
+          ..write('beneficiaire: $beneficiaire, ')
           ..write('controlePJId: $controlePJId, ')
           ..write('unite: $unite, ')
           ..write('nbJrMois: $nbJrMois, ')
@@ -14503,6 +14557,7 @@ typedef $$DepensesTableCreateCompanionBuilder =
       Value<String?> codeActivite,
       Value<String?> codeBudget,
       Value<String> designation,
+      Value<String?> beneficiaire,
       Value<int?> controlePJId,
       Value<String?> unite,
       Value<double> nbJrMois,
@@ -14524,6 +14579,7 @@ typedef $$DepensesTableUpdateCompanionBuilder =
       Value<String?> codeActivite,
       Value<String?> codeBudget,
       Value<String> designation,
+      Value<String?> beneficiaire,
       Value<int?> controlePJId,
       Value<String?> unite,
       Value<double> nbJrMois,
@@ -14594,6 +14650,11 @@ class $$DepensesTableFilterComposer
 
   ColumnFilters<String> get designation => $composableBuilder(
     column: $table.designation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get beneficiaire => $composableBuilder(
+    column: $table.beneficiaire,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14697,6 +14758,11 @@ class $$DepensesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get beneficiaire => $composableBuilder(
+    column: $table.beneficiaire,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get controlePJId => $composableBuilder(
     column: $table.controlePJId,
     builder: (column) => ColumnOrderings(column),
@@ -14791,6 +14857,11 @@ class $$DepensesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get beneficiaire => $composableBuilder(
+    column: $table.beneficiaire,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get controlePJId => $composableBuilder(
     column: $table.controlePJId,
     builder: (column) => column,
@@ -14856,6 +14927,7 @@ class $$DepensesTableTableManager
                 Value<String?> codeActivite = const Value.absent(),
                 Value<String?> codeBudget = const Value.absent(),
                 Value<String> designation = const Value.absent(),
+                Value<String?> beneficiaire = const Value.absent(),
                 Value<int?> controlePJId = const Value.absent(),
                 Value<String?> unite = const Value.absent(),
                 Value<double> nbJrMois = const Value.absent(),
@@ -14875,6 +14947,7 @@ class $$DepensesTableTableManager
                 codeActivite: codeActivite,
                 codeBudget: codeBudget,
                 designation: designation,
+                beneficiaire: beneficiaire,
                 controlePJId: controlePJId,
                 unite: unite,
                 nbJrMois: nbJrMois,
@@ -14896,6 +14969,7 @@ class $$DepensesTableTableManager
                 Value<String?> codeActivite = const Value.absent(),
                 Value<String?> codeBudget = const Value.absent(),
                 Value<String> designation = const Value.absent(),
+                Value<String?> beneficiaire = const Value.absent(),
                 Value<int?> controlePJId = const Value.absent(),
                 Value<String?> unite = const Value.absent(),
                 Value<double> nbJrMois = const Value.absent(),
@@ -14915,6 +14989,7 @@ class $$DepensesTableTableManager
                 codeActivite: codeActivite,
                 codeBudget: codeBudget,
                 designation: designation,
+                beneficiaire: beneficiaire,
                 controlePJId: controlePJId,
                 unite: unite,
                 nbJrMois: nbJrMois,

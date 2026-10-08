@@ -19,27 +19,41 @@ import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/tableau.dart';
 import '../profil/profil_screen.dart';
+import 'configuration/configuration_onglet.dart';
 
 /// Paramètres : référentiels (tarifs, distances), listes de valeurs,
-/// paramètres généraux.
+/// **configuration de toute l'application** et paramètres généraux.
 class ParametresScreen extends ConsumerStatefulWidget {
-  const ParametresScreen({super.key});
+  const ParametresScreen({this.onglet, this.moduleConfiguration, super.key});
+
+  /// Onglet ouvert d'emblée : `configuration` (bouton « Configuration » des
+  /// autres écrans), sinon le premier onglet.
+  final String? onglet;
+
+  /// Module pré-sélectionné dans la configuration (`depenses`, `budgets`…).
+  final String? moduleConfiguration;
 
   @override
   ConsumerState<ParametresScreen> createState() => _ParametresScreenState();
 }
 
 class _ParametresScreenState extends ConsumerState<ParametresScreen> {
+  /// Position de l'onglet « Configuration » dans la barre d'onglets.
+  static const _indexConfiguration = 4;
+
   @override
   Widget build(BuildContext context) {
+    final demande = (widget.onglet ?? '').trim().toLowerCase();
     return DefaultTabController(
-      length: 6,
+      length: 7,
+      initialIndex: demande == 'configuration' ? _indexConfiguration : 0,
       child: Scaffold(
         body: Column(
           children: [
             const EnTetePage(
               titre: 'Paramètres',
               sousTitre: 'Référentiels, listes de valeurs et configuration',
+              afficherAccesConfiguration: false,
             ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24),
@@ -62,6 +76,10 @@ class _ParametresScreenState extends ConsumerState<ParametresScreen> {
                     icon: Icons.rule_folder_outlined,
                   ),
                   OngletAnime(
+                    label: 'Configuration',
+                    icon: Icons.tune_outlined,
+                  ),
+                  OngletAnime(
                     label: 'Comptes',
                     icon: Icons.manage_accounts_outlined,
                   ),
@@ -70,15 +88,18 @@ class _ParametresScreenState extends ConsumerState<ParametresScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            const Expanded(
+            Expanded(
               child: TabBarView(
                 children: [
-                  _OngletTarifs(),
-                  _OngletDistances(),
-                  _OngletListes(),
-                  _OngletRegles(),
-                  _OngletComptes(),
-                  _OngletGeneral(),
+                  const _OngletTarifs(),
+                  const _OngletDistances(),
+                  const _OngletListes(),
+                  const _OngletRegles(),
+                  ConfigurationOnglet(
+                    moduleInitial: widget.moduleConfiguration,
+                  ),
+                  const _OngletComptes(),
+                  const _OngletGeneral(),
                 ],
               ),
             ),
@@ -217,6 +238,7 @@ class _OngletTarifsState extends ConsumerState<_OngletTarifs> {
                 child: TableauGestion<TarifReferentiel>(
                   lignes: visibles,
                   cleLigne: (t) => t.id,
+                  cleModule: 'parametres_tarifs',
                   messageVide: 'Aucun taux enregistré.',
                   colonnes: [
                     ColonneTableau(
@@ -338,7 +360,7 @@ class _TarifDialogState extends ConsumerState<_TarifDialog> {
       text: _normaliserLigne(t?.ligneBudgetaire ?? ''),
     );
     _typeTaux = TextEditingController(
-      text: t?.typeActivite?.isNotEmpty == true
+      text: t?.typeActivite.isNotEmpty == true
           ? t!.typeActivite
           : _typesTaux.first,
     );
@@ -584,6 +606,7 @@ class _OngletDistancesState extends ConsumerState<_OngletDistances> {
               child: TableauGestion<District>(
                 lignes: liste,
                 cleLigne: (d) => d.id,
+                cleModule: 'parametres_districts',
                 messageVide:
                     'Aucun district enregistré pour le moment.\n'
                     'Les districts proviennent du référentiel DISTANCES_DISTRICTS '
@@ -2150,6 +2173,24 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
     Color(0xFF5D4037),
     Color(0xFF37474F),
   ];
+  static const _couplesCouleur =
+      <({String nom, Color primaire, Color secondaire})>[
+        (
+          nom: 'Bleu / turquoise',
+          primaire: Color(0xFF1565C0),
+          secondaire: Color(0xFF00897B),
+        ),
+        (
+          nom: 'Violet / ambre',
+          primaire: Color(0xFF6A1B9A),
+          secondaire: Color(0xFFEF6C00),
+        ),
+        (
+          nom: 'Indigo / corail',
+          primaire: Color(0xFF283593),
+          secondaire: Color(0xFFC62828),
+        ),
+      ];
 
   late final TextEditingController _banque;
   late final TextEditingController _compte;
@@ -2296,6 +2337,63 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
     );
   }
 
+  Future<Color?> _choisirCouleur(Color actuelle) async {
+    final hex = actuelle
+        .toARGB32()
+        .toRadixString(16)
+        .substring(2)
+        .toUpperCase();
+    final saisie = TextEditingController(text: '#$hex');
+    String? erreur;
+    final choisie = await showDialog<Color>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Couleur personnalisée'),
+          content: TextField(
+            controller: saisie,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Code hexadécimal',
+              hintText: '#1565C0',
+              errorText: erreur,
+              prefixIcon: const Icon(Icons.palette_outlined),
+            ),
+            onChanged: (_) => setDialogState(() => erreur = null),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final texte = saisie.text.trim().replaceFirst('#', '');
+                final normalise = texte.startsWith('0x')
+                    ? texte.substring(2)
+                    : texte;
+                final valeur = int.tryParse(normalise, radix: 16);
+                if (valeur == null ||
+                    (normalise.length != 6 && normalise.length != 8)) {
+                  setDialogState(() {
+                    erreur = 'Saisissez une couleur au format #RRGGBB.';
+                  });
+                  return;
+                }
+                Navigator.of(dialogContext).pop(
+                  Color(normalise.length == 6 ? 0xFF000000 | valeur : valeur),
+                );
+              },
+              child: const Text('Appliquer'),
+            ),
+          ],
+        ),
+      ),
+    );
+    saisie.dispose();
+    return choisie;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_charge) {
@@ -2364,6 +2462,14 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
                   value: menuReduit,
                   onChanged: (v) =>
                       ref.read(sidebarReduiteProvider.notifier).state = v,
+                ),
+                LigneBascule(
+                  label: 'Motif d’arrière-plan discret',
+                  sousTitre:
+                      'Afficher une trame géométrique très légère dans l’interface.',
+                  value: reglages.motifFond,
+                  onChanged: (v) =>
+                      _modifierReglages((r) => r.copyWith(motifFond: v)),
                 ),
               ],
             ),
@@ -2457,10 +2563,10 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
                       _modifierReglages((r) => r.copyWith(filtresOuverts: v)),
                 ),
                 LigneBascule(
-                  label: 'Sauvegarde automatique',
+                  label: 'Sauvegarde automatique à la fermeture',
                   sousTitre:
-                      'Crée automatiquement une copie de sécurité de la base '
-                      'à chaque ouverture (une par jour maximum).',
+                      'À la fermeture, remplace la sauvegarde la plus récente '
+                      'au lieu d’en créer une nouvelle.',
                   value: reglages.sauvegardeAutomatique,
                   onChanged: (v) => _modifierReglages(
                     (r) => r.copyWith(sauvegardeAutomatique: v),
@@ -2477,6 +2583,20 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
                   onChoisir: (c) =>
                       _modifierReglages((r) => r.copyWith(couleurPrimaire: c)),
                 ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final couleur = await _choisirCouleur(
+                      reglages.couleurPrimaire,
+                    );
+                    if (couleur != null) {
+                      _modifierReglages(
+                        (r) => r.copyWith(couleurPrimaire: couleur),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.colorize, size: 17),
+                  label: const Text('Couleur principale personnalisée'),
+                ),
                 const SizedBox(height: 16),
                 const Text(
                   'Couleur secondaire',
@@ -2488,6 +2608,68 @@ class _OngletGeneralState extends ConsumerState<_OngletGeneral> {
                   onChoisir: (c) => _modifierReglages(
                     (r) => r.copyWith(couleurSecondaire: c),
                   ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final couleur = await _choisirCouleur(
+                      reglages.couleurSecondaire,
+                    );
+                    if (couleur != null) {
+                      _modifierReglages(
+                        (r) => r.copyWith(couleurSecondaire: couleur),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.colorize, size: 17),
+                  label: const Text('Couleur secondaire personnalisée'),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Accords de couleurs proposés',
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final couple in _couplesCouleur)
+                      ActionChip(
+                        avatar: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: couple.primaire,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: couple.secondaire,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ),
+                        label: Text(
+                          '${couple.nom} · '
+                          '#${couple.primaire.toARGB32().toRadixString(16).substring(2).toUpperCase()} / '
+                          '#${couple.secondaire.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                        ),
+                        onPressed: () => _modifierReglages(
+                          (r) => r.copyWith(
+                            couleurPrimaire: couple.primaire,
+                            couleurSecondaire: couple.secondaire,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 18),
                 Row(

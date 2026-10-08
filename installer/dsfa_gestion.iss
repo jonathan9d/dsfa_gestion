@@ -8,7 +8,7 @@
 ; ============================================================
 
 #define MonApp       "DSFA Gestion"
-#define MonVersion   "1.1.1"
+#define MonVersion   "1.2.0"
 #define MonEditeur   "DSFA / UNICEF"
 #define MonExe       "dsfa_gestion.exe"
 #define DossierBuild "..\build\windows\x64\runner\Release"

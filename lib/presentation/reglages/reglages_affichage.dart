@@ -16,6 +16,8 @@ class ReglagesAffichage {
     this.echellePolice = 1.0,
     this.filtresOuverts = false,
     this.sauvegardeAutomatique = false,
+    this.sonActif = true,
+    this.motifFond = false,
   });
 
   /// Autorise le défilement horizontal des tableaux quand le contenu dépasse
@@ -37,8 +39,14 @@ class ReglagesAffichage {
   /// filtres ne s'ouvre que sur demande (« Filtrer ») ou via ce réglage.
   final bool filtresOuverts;
 
-  /// Crée automatiquement une sauvegarde à chaque ouverture (une par jour).
+  /// Remplace la sauvegarde la plus récente à la fermeture de l'application.
   final bool sauvegardeAutomatique;
+
+  /// Active les sons d'interaction et de notification.
+  final bool sonActif;
+
+  /// Affiche un motif géométrique discret au-dessus des écrans.
+  final bool motifFond;
 
   ReglagesAffichage copyWith({
     bool? defilementHorizontal,
@@ -47,6 +55,8 @@ class ReglagesAffichage {
     double? echellePolice,
     bool? filtresOuverts,
     bool? sauvegardeAutomatique,
+    bool? sonActif,
+    bool? motifFond,
   }) => ReglagesAffichage(
     defilementHorizontal: defilementHorizontal ?? this.defilementHorizontal,
     couleurPrimaire: couleurPrimaire ?? this.couleurPrimaire,
@@ -54,6 +64,8 @@ class ReglagesAffichage {
     echellePolice: echellePolice ?? this.echellePolice,
     filtresOuverts: filtresOuverts ?? this.filtresOuverts,
     sauvegardeAutomatique: sauvegardeAutomatique ?? this.sauvegardeAutomatique,
+    sonActif: sonActif ?? this.sonActif,
+    motifFond: motifFond ?? this.motifFond,
   );
 
   /// Réglages effectifs pour le contexte courant : valeur par défaut si
@@ -73,6 +85,8 @@ class ReglagesAffichage {
   static const clePolice = 'affichage_echelle_police';
   static const cleFiltres = 'affichage_filtres_ouverts';
   static const cleSauvegardeAuto = 'affichage_sauvegarde_automatique';
+  static const cleSonActif = 'affichage_son_actif';
+  static const cleMotifFond = 'affichage_motif_fond';
 
   /// Clé de persistance du thème choisi (clair / sombre / automatique).
   static const cleTheme = 'affichage_theme';
@@ -101,6 +115,8 @@ class ReglagesAffichage {
     clePolice: echellePolice.toStringAsFixed(2),
     cleFiltres: filtresOuverts ? '1' : '0',
     cleSauvegardeAuto: sauvegardeAutomatique ? '1' : '0',
+    cleSonActif: sonActif ? '1' : '0',
+    cleMotifFond: motifFond ? '1' : '0',
   };
 
   /// Reconstructeur à partir de la table `parametres` (valeurs absentes =
@@ -129,6 +145,8 @@ class ReglagesAffichage {
       echellePolice: echelle,
       filtresOuverts: boole(cleFiltres, false),
       sauvegardeAutomatique: boole(cleSauvegardeAuto, false),
+      sonActif: boole(cleSonActif, true),
+      motifFond: boole(cleMotifFond, false),
     );
   }
 
@@ -140,7 +158,9 @@ class ReglagesAffichage {
       other.couleurSecondaire == couleurSecondaire &&
       other.echellePolice == echellePolice &&
       other.filtresOuverts == filtresOuverts &&
-      other.sauvegardeAutomatique == sauvegardeAutomatique;
+      other.sauvegardeAutomatique == sauvegardeAutomatique &&
+      other.sonActif == sonActif &&
+      other.motifFond == motifFond;
 
   @override
   int get hashCode => Object.hash(
@@ -150,6 +170,8 @@ class ReglagesAffichage {
     echellePolice,
     filtresOuverts,
     sauvegardeAutomatique,
+    sonActif,
+    motifFond,
   );
 }
 

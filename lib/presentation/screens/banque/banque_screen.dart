@@ -35,6 +35,7 @@ class _BanqueScreenState extends ConsumerState<BanqueScreen> {
         children: [
           EnTetePage(
             titre: 'Banque',
+            module: 'banque',
             sousTitre: 'Journal de banque et relevé bancaire',
             actions: [
               OutlinedButton.icon(
@@ -124,8 +125,7 @@ class _ContenuBanque extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final recettes =
-        operations.fold<double>(0, (s, o) => s + o.recettes);
+    final recettes = operations.fold<double>(0, (s, o) => s + o.recettes);
     final depenses = operations.fold<double>(0, (s, o) => s + o.depenses);
     final solde = recettes - depenses;
 
@@ -143,10 +143,15 @@ class _ContenuBanque extends StatelessWidget {
       children: [
         LayoutBuilder(
           builder: (context, c) {
-            final colonnes = c.maxWidth > 1000 ? 3 : c.maxWidth > 600 ? 2 : 1;
+            final colonnes = c.maxWidth > 1000
+                ? 3
+                : c.maxWidth > 600
+                ? 2
+                : 1;
             const espace = 16.0;
-            final largeur =
-                colonnes == 1 ? c.maxWidth : (c.maxWidth - espace * (colonnes - 1)) / colonnes;
+            final largeur = colonnes == 1
+                ? c.maxWidth
+                : (c.maxWidth - espace * (colonnes - 1)) / colonnes;
             return Wrap(
               spacing: espace,
               runSpacing: espace,
@@ -185,34 +190,45 @@ class _ContenuBanque extends StatelessWidget {
         const SizedBox(height: 20),
         Text(
           'Journal de banque',
-          style: Theme.of(context).textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         TableauGestion<BanqueOperation>(
+          cleModule: 'banque',
           lignes: operations,
           cleLigne: (o) => o.id,
           messageVide: 'Aucune opération bancaire enregistrée pour le moment.',
           colonnes: [
             ColonneTableau(
               label: 'Date',
+              cle: 'date',
               flex: 2,
               valeur: (o) => formatDate(o.date),
               cleTri: (o) => o.date,
             ),
             ColonneTableau(
               label: 'Réf pièce',
+              cle: 'reference',
               flex: 3,
               valeur: (o) => o.refPiece ?? '',
             ),
-            ColonneTableau(label: 'Type', flex: 3, valeur: (o) => o.type),
+            ColonneTableau(
+              label: 'Type',
+              cle: 'type',
+              flex: 3,
+              valeur: (o) => o.type,
+            ),
             ColonneTableau(
               label: 'Description',
+              cle: 'description',
               flex: 5,
               valeur: (o) => o.description,
             ),
             ColonneTableau(
               label: 'Recettes',
+              cle: 'recettes',
               flex: 3,
               numerique: true,
               valeur: (o) => o.recettes == 0 ? '' : formatMontant(o.recettes),
@@ -224,6 +240,7 @@ class _ContenuBanque extends StatelessWidget {
             ),
             ColonneTableau(
               label: 'Dépenses',
+              cle: 'depenses',
               flex: 3,
               numerique: true,
               valeur: (o) => o.depenses == 0 ? '' : formatMontant(o.depenses),
@@ -235,6 +252,7 @@ class _ContenuBanque extends StatelessWidget {
             ),
             ColonneTableau(
               label: 'Solde',
+              cle: 'solde',
               flex: 3,
               numerique: true,
               valeur: (o) => formatMontant(soldes[operations.indexOf(o) + 1]),
@@ -284,13 +302,15 @@ class _ContenuBanque extends StatelessWidget {
         const SizedBox(height: 24),
         Text(
           'Relevé bancaire',
-          style: Theme.of(context).textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         TableauGestion<ReleveBancaireLigne>(
           lignes: releve,
           cleLigne: (r) => r.id,
+          cleModule: 'banque_releve',
           messageVide:
               'Aucune ligne de relevé bancaire.\n'
               'Ajoutez les lignes du relevé pour pouvoir le rapprocher du journal.',
@@ -450,10 +470,12 @@ class _OperationDialogState extends ConsumerState<_OperationDialog> {
       type: drift.Value(_type),
       refCheque: drift.Value(_refCheque.text.trim()),
       description: drift.Value(_description.text.trim()),
-      recettes:
-          drift.Value(double.tryParse(_recettes.text.replaceAll(',', '.')) ?? 0),
-      depenses:
-          drift.Value(double.tryParse(_depenses.text.replaceAll(',', '.')) ?? 0),
+      recettes: drift.Value(
+        double.tryParse(_recettes.text.replaceAll(',', '.')) ?? 0,
+      ),
+      depenses: drift.Value(
+        double.tryParse(_depenses.text.replaceAll(',', '.')) ?? 0,
+      ),
       bailleur: drift.Value(_bailleur.text.trim()),
       beneficiaire: drift.Value(_beneficiaire.text.trim()),
     );
@@ -490,17 +512,16 @@ class _OperationDialogState extends ConsumerState<_OperationDialog> {
         .where((b) => b.trim().isNotEmpty)
         .toSet()
         .toList();
-    List<String> distinctes(String Function(BanqueOperation) f) => operations
-        .map(f)
-        .where((v) => v.trim().isNotEmpty)
-        .toSet()
-        .toList();
+    List<String> distinctes(String Function(BanqueOperation) f) =>
+        operations.map(f).where((v) => v.trim().isNotEmpty).toSet().toList();
     final refs = distinctes((o) => o.refPiece ?? '');
     final refsCheque = distinctes((o) => o.refCheque ?? '');
     final descriptions = distinctes((o) => o.description);
     return AlertDialog(
       title: TitreDialogue(
-        widget.operation == null ? 'Nouvelle opération' : 'Modifier l\'opération',
+        widget.operation == null
+            ? 'Nouvelle opération'
+            : 'Modifier l\'opération',
         icone: Icons.account_balance_outlined,
       ),
       content: SizedBox(
@@ -527,8 +548,10 @@ class _OperationDialogState extends ConsumerState<_OperationDialog> {
                         child: InputDecorator(
                           decoration: const InputDecoration(
                             labelText: 'Date *',
-                            suffixIcon:
-                                Icon(Icons.calendar_today_outlined, size: 18),
+                            suffixIcon: Icon(
+                              Icons.calendar_today_outlined,
+                              size: 18,
+                            ),
                           ),
                           child: Text(formatDate(_date)),
                         ),
@@ -685,8 +708,12 @@ class _ReleveDialogState extends ConsumerState<_ReleveDialog> {
       date: drift.Value(_date),
       reference: drift.Value(_reference.text.trim()),
       libelle: drift.Value(_libelle.text.trim()),
-      debit: drift.Value(double.tryParse(_debit.text.replaceAll(',', '.')) ?? 0),
-      credit: drift.Value(double.tryParse(_credit.text.replaceAll(',', '.')) ?? 0),
+      debit: drift.Value(
+        double.tryParse(_debit.text.replaceAll(',', '.')) ?? 0,
+      ),
+      credit: drift.Value(
+        double.tryParse(_credit.text.replaceAll(',', '.')) ?? 0,
+      ),
     );
     if (widget.ligne == null) {
       await repo.insert(companion);
@@ -698,7 +725,8 @@ class _ReleveDialogState extends ConsumerState<_ReleveDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final releve = ref.watch(releveBancaireProvider).value ??
+    final releve =
+        ref.watch(releveBancaireProvider).value ??
         const <ReleveBancaireLigne>[];
     final references = releve
         .map((r) => r.reference ?? '')

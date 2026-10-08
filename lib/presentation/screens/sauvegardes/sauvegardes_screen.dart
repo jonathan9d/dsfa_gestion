@@ -48,10 +48,7 @@ class _LigneInfo extends StatelessWidget {
                 label,
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
-              SelectableText(
-                valeur,
-                style: const TextStyle(fontSize: 12.5),
-              ),
+              SelectableText(valeur, style: const TextStyle(fontSize: 12.5)),
             ],
           ),
         ),
@@ -129,6 +126,7 @@ class _SauvegardesScreenState extends ConsumerState<SauvegardesScreen> {
         children: [
           EnTetePage(
             titre: 'Sauvegardes',
+            module: 'sauvegardes',
             sousTitre:
                 'Sauvegarde et restauration de la base de données locale',
             actions: [
@@ -141,9 +139,9 @@ class _SauvegardesScreenState extends ConsumerState<SauvegardesScreen> {
                 onPressed: _sauvegardes.isEmpty || _enCours
                     ? null
                     : () => setState(() {
-                          _modeSelection = !_modeSelection;
-                          if (!_modeSelection) _selection.clear();
-                        }),
+                        _modeSelection = !_modeSelection;
+                        if (!_modeSelection) _selection.clear();
+                      }),
                 icon: Icon(
                   _modeSelection ? Icons.close : Icons.checklist,
                   size: 18,
@@ -321,9 +319,7 @@ class _SauvegardesScreenState extends ConsumerState<SauvegardesScreen> {
                       );
                       if (!ok) return;
                       try {
-                        await ref
-                            .read(sauvegardeServiceProvider)
-                            .supprimer(f);
+                        await ref.read(sauvegardeServiceProvider).supprimer(f);
                         await _charger();
                       } on FileSystemException {
                         if (mounted) {

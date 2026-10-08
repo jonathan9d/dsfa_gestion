@@ -19,6 +19,7 @@ class RapprochementScreen extends ConsumerWidget {
         children: [
           EnTetePage(
             titre: 'Rapprochement bancaire',
+            module: 'rapprochement',
             sousTitre:
                 'Comparaison entre le journal de banque et le relevé bancaire',
             actions: [
@@ -130,69 +131,66 @@ class _Contenu extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         TableauGestion<LigneRapprochement>(
-            lignes: resultat.lignes,
-            cleLigne: (l) =>
-                '${l.reference}|${l.date?.toIso8601String() ?? ''}|${l.libelle}|'
-                '${l.montantJournal}',
-            taillePage: 10,
-            messageVide:
-                'Aucune ligne à rapprocher pour le moment.\n'
-                'Ajoutez des opérations bancaires et un relevé, puis relancez '
-                'le calcul.',
-            colonnes: [
-              ColonneTableau(
-                label: 'Date',
-                flex: 2,
-                valeur: (l) => formatDate(l.date),
-                cleTri: (l) => l.date,
-              ),
-              ColonneTableau(
-                label: 'Référence',
-                flex: 3,
-                valeur: (l) => l.reference,
-              ),
-              ColonneTableau(
-                label: 'Libellé',
-                flex: 5,
-                valeur: (l) => l.libelle,
-              ),
-              ColonneTableau(
-                label: 'Montant journal',
-                flex: 3,
-                numerique: true,
-                valeur: (l) => formatMontant(l.montantJournal),
-                cleTri: (l) => l.montantJournal,
-              ),
-              ColonneTableau(
-                label: 'Montant relevé',
-                flex: 3,
-                numerique: true,
-                valeur: (l) => formatMontant(l.montantReleve),
-                cleTri: (l) => l.montantReleve,
-              ),
-              ColonneTableau(
-                label: 'Écart',
-                flex: 3,
-                numerique: true,
-                valeur: (l) => formatMontant(l.ecart),
-                cleTri: (l) => l.ecart,
-                cellule: (context, l) => Text(
-                  formatMontant(l.ecart),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: l.ecart.abs() < 0.000001
-                        ? const Color(0xFF2E7D32)
-                        : const Color(0xFFC62828),
-                  ),
+          lignes: resultat.lignes,
+          cleLigne: (l) =>
+              '${l.reference}|${l.date?.toIso8601String() ?? ''}|${l.libelle}|'
+              '${l.montantJournal}',
+          cleModule: 'rapprochement',
+          taillePage: 10,
+          messageVide:
+              'Aucune ligne à rapprocher pour le moment.\n'
+              'Ajoutez des opérations bancaires et un relevé, puis relancez '
+              'le calcul.',
+          colonnes: [
+            ColonneTableau(
+              label: 'Date',
+              flex: 2,
+              valeur: (l) => formatDate(l.date),
+              cleTri: (l) => l.date,
+            ),
+            ColonneTableau(
+              label: 'Référence',
+              flex: 3,
+              valeur: (l) => l.reference,
+            ),
+            ColonneTableau(label: 'Libellé', flex: 5, valeur: (l) => l.libelle),
+            ColonneTableau(
+              label: 'Montant journal',
+              flex: 3,
+              numerique: true,
+              valeur: (l) => formatMontant(l.montantJournal),
+              cleTri: (l) => l.montantJournal,
+            ),
+            ColonneTableau(
+              label: 'Montant relevé',
+              flex: 3,
+              numerique: true,
+              valeur: (l) => formatMontant(l.montantReleve),
+              cleTri: (l) => l.montantReleve,
+            ),
+            ColonneTableau(
+              label: 'Écart',
+              flex: 3,
+              numerique: true,
+              valeur: (l) => formatMontant(l.ecart),
+              cleTri: (l) => l.ecart,
+              cellule: (context, l) => Text(
+                formatMontant(l.ecart),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: l.ecart.abs() < 0.000001
+                      ? const Color(0xFF2E7D32)
+                      : const Color(0xFFC62828),
                 ),
               ),
-              ColonneTableau(
-                label: 'Statut',
-                flex: 3,
-                valeur: (l) => l.statut.libelle,
-                cellule: (_, l) => _PastilleRapprochement(statut: l.statut),
-              ),
-            ],
+            ),
+            ColonneTableau(
+              label: 'Statut',
+              flex: 3,
+              valeur: (l) => l.statut.libelle,
+              cellule: (_, l) => _PastilleRapprochement(statut: l.statut),
+            ),
+          ],
         ),
       ],
     );

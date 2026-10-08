@@ -599,9 +599,9 @@ class ExcelExportService {
       'Date enregistrement',
       'Date pièce comptable',
       'Période autorisée',
-      'Fonds',
+      'Mode de paiement',
       'Réf décaissement',
-      'Réf pièce dépense',
+      'Référence PJ',
       'DCT N°',
       'Code activité',
       'Code budget',
@@ -612,6 +612,7 @@ class ExcelExportService {
       'Fréquence',
       'P.U. (Ar)',
       'Montant (Ar)',
+      'Bénéficiaire',
     ]);
     final depenses = await _depenses.getAll();
     var total = 0.0;
@@ -635,6 +636,7 @@ class ExcelExportService {
         DoubleCellValue(d.frequence),
         DoubleCellValue(d.pu),
         DoubleCellValue(montant),
+        TextCellValue(d.beneficiaire ?? ''),
       ]);
     }
     _ligneTotal(sheet, 'TOTAL DÉPENSES', 15, total);

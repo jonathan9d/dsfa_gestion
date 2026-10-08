@@ -20,8 +20,8 @@ class JournalDepensesService {
   JournalDepensesService({
     required DepensesRepository depenses,
     required ActivitesRepository activites,
-  })  : _depenses = depenses,
-        _activites = activites;
+  }) : _depenses = depenses,
+       _activites = activites;
 
   final DepensesRepository _depenses;
   final ActivitesRepository _activites;
@@ -50,19 +50,20 @@ class JournalDepensesService {
     final designation = (c.ligneBudgetaire ?? '').trim().isEmpty
         ? (descriptionPJ.isEmpty ? 'Pièce justificative' : descriptionPJ)
         : (descriptionPJ.isEmpty
-            ? c.ligneBudgetaire!.trim()
-            : '${c.ligneBudgetaire!.trim()} — $descriptionPJ');
+              ? c.ligneBudgetaire!.trim()
+              : '${c.ligneBudgetaire!.trim()} — $descriptionPJ');
 
     final companion = DepensesCompanion(
       dateEnregistrement: drift.Value(c.datePJ ?? liee?.dateEnregistrement),
       datePieceComptable: drift.Value(c.datePJ),
       codeActivite: drift.Value(c.activiteCode),
-      codeBudget: drift.Value(
-        activite?.codeBudget ?? liee?.codeBudget ?? '',
-      ),
+      codeBudget: drift.Value(activite?.codeBudget ?? liee?.codeBudget ?? ''),
       designation: drift.Value(designation),
+      beneficiaire: drift.Value(c.beneficiaire ?? liee?.beneficiaire),
       // Description des pièces justificatives : facture ou état de paiement.
-      dctNumero: drift.Value(descriptionPJ.isEmpty ? liee?.dctNumero : descriptionPJ),
+      dctNumero: drift.Value(
+        descriptionPJ.isEmpty ? liee?.dctNumero : descriptionPJ,
+      ),
       refPieceDepense: drift.Value(liee?.refPieceDepense ?? ''),
       controlePJId: const drift.Value.absent(),
       nbJrMois: const drift.Value(1),
@@ -87,6 +88,7 @@ class JournalDepensesService {
           datePieceComptable: drift.Value(c.datePJ),
           codeActivite: drift.Value(c.activiteCode),
           codeBudget: drift.Value(activite?.codeBudget ?? ''),
+          beneficiaire: drift.Value(c.beneficiaire),
           dctNumero: drift.Value(descriptionPJ),
           observation: drift.Value(c.observation ?? ''),
         ),
@@ -162,9 +164,9 @@ class JournalDepensesService {
 
   /// Montant total des dépenses réalisées pour une ligne budgétaire.
   static double montantDepense(Depense d) => ReglesMetier.montantDepense(
-        nbJrMois: d.nbJrMois,
-        quantite: d.quantite,
-        frequence: d.frequence,
-        pu: d.pu,
-      );
+    nbJrMois: d.nbJrMois,
+    quantite: d.quantite,
+    frequence: d.frequence,
+    pu: d.pu,
+  );
 }

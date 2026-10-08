@@ -117,13 +117,17 @@ class ProfilScreen extends ConsumerWidget {
           children: [
             EnTetePage(
               titre: 'Profil utilisateur',
+              module: 'profil',
               sousTitre:
                   'Informations personnelles, mot de passe et comptes de '
                   'l\'application',
               actions: [
                 if (utilisateur != null)
                   Chip(
-                    avatar: AvatarUtilisateur(utilisateur: utilisateur, rayon: 12),
+                    avatar: AvatarUtilisateur(
+                      utilisateur: utilisateur,
+                      rayon: 12,
+                    ),
                     label: Text(
                       RoleUtilisateur.depuisCode(utilisateur.role).libelle,
                       style: const TextStyle(fontSize: 12),
@@ -210,7 +214,9 @@ class _OngletMonProfil extends ConsumerWidget {
                             icone: utilisateur.actif
                                 ? Icons.check_circle_outline
                                 : Icons.block_outlined,
-                            texte: utilisateur.actif ? 'Compte actif' : 'Compte désactivé',
+                            texte: utilisateur.actif
+                                ? 'Compte actif'
+                                : 'Compte désactivé',
                             couleur: utilisateur.actif
                                 ? const Color(0xFF2E7D32)
                                 : scheme.error,
@@ -388,8 +394,10 @@ class _OngletMotDePasseState extends ConsumerState<_OngletMotDePasse> {
                       labelText: 'Mot de passe actuel *',
                       prefixIcon: Icon(Icons.lock_outline),
                     ),
-                    validator: (v) =>
-                        validateurObligatoire(v, champ: 'Le mot de passe actuel'),
+                    validator: (v) => validateurObligatoire(
+                      v,
+                      champ: 'Le mot de passe actuel',
+                    ),
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -408,7 +416,8 @@ class _OngletMotDePasseState extends ConsumerState<_OngletMotDePasse> {
                         return 'Le nouveau mot de passe est obligatoire.';
                       }
                       if (valeur.length <
-                          AuthentificationRepository.longueurMotDePasseMinimum) {
+                          AuthentificationRepository
+                              .longueurMotDePasseMinimum) {
                         return 'Le mot de passe doit contenir au moins '
                             '${AuthentificationRepository.longueurMotDePasseMinimum} '
                             'caractères.';
@@ -423,8 +432,9 @@ class _OngletMotDePasseState extends ConsumerState<_OngletMotDePasse> {
                         child: LinearProgressIndicator(
                           value: robustesse.score / 4,
                           minHeight: 4,
-                          backgroundColor:
-                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -481,7 +491,9 @@ class _OngletMotDePasseState extends ConsumerState<_OngletMotDePasse> {
                           size: 18,
                         ),
                         label: Text(
-                          _afficher ? 'Masquer les mots de passe' : 'Afficher les mots de passe',
+                          _afficher
+                              ? 'Masquer les mots de passe'
+                              : 'Afficher les mots de passe',
                         ),
                       ),
                     ],
@@ -579,6 +591,7 @@ class OngletComptesUtilisateurs extends ConsumerWidget {
         data: (liste) => TableauGestion<Utilisateur>(
           lignes: liste,
           cleLigne: (u) => u.id,
+          cleModule: 'profil_utilisateurs',
           messageVide:
               'Aucun compte utilisateur enregistré pour le moment.\n'
               'Créez un compte pour donner accès à l\'application.',
@@ -622,7 +635,11 @@ class OngletComptesUtilisateurs extends ConsumerWidget {
               flex: 3,
               valeur: (u) => u.fonction ?? '',
             ),
-            ColonneTableau(label: 'Email', flex: 4, valeur: (u) => u.email ?? ''),
+            ColonneTableau(
+              label: 'Email',
+              flex: 4,
+              valeur: (u) => u.email ?? '',
+            ),
             ColonneTableau(
               label: 'Dernière connexion',
               flex: 3,
@@ -635,7 +652,9 @@ class OngletComptesUtilisateurs extends ConsumerWidget {
               valeur: (u) => u.actif ? 'Actif' : 'Inactif',
               cellule: (_, u) => SwitchCompact(
                 value: u.actif,
-                infobulle: u.actif ? 'Désactiver ce compte' : 'Activer ce compte',
+                infobulle: u.actif
+                    ? 'Désactiver ce compte'
+                    : 'Activer ce compte',
                 onChanged: (v) async {
                   try {
                     await ref
@@ -705,10 +724,7 @@ class OngletComptesUtilisateurs extends ConsumerWidget {
       builder: (_) => DialogueUtilisateur(utilisateur: utilisateur),
     );
     if (ok == true && context.mounted) {
-      notifier(
-        context,
-        utilisateur == null ? 'Compte créé' : 'Compte modifié',
-      );
+      notifier(context, utilisateur == null ? 'Compte créé' : 'Compte modifié');
     }
   }
 
@@ -725,10 +741,7 @@ class OngletComptesUtilisateurs extends ConsumerWidget {
     try {
       await ref
           .read(authentificationRepositoryProvider)
-          .definirMotDePasse(
-            id: utilisateur.id,
-            nouveauMotDePasse: nouveau,
-          );
+          .definirMotDePasse(id: utilisateur.id, nouveauMotDePasse: nouveau);
       if (context.mounted) {
         await showDialog<void>(
           context: context,
@@ -861,9 +874,7 @@ class _DialogueUtilisateurState extends ConsumerState<DialogueUtilisateur> {
               Expanded(child: b),
             ],
           )
-        : Column(
-            children: [a, const SizedBox(height: 12), b],
-          );
+        : Column(children: [a, const SizedBox(height: 12), b]);
 
     return AlertDialog(
       title: TitreDialogue(
@@ -881,11 +892,67 @@ class _DialogueUtilisateurState extends ConsumerState<DialogueUtilisateur> {
               children: [
                 Row(
                   children: [
-                    AvatarUtilisateur(
-                      utilisateur: widget.utilisateur?.copyWith(
-                        photo: Value(_photo),
-                      ),
-                      rayon: 26,
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => showDialog<void>(
+                            context: context,
+                            builder: (_) => Dialog(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: AvatarUtilisateur(
+                                  utilisateur: widget.utilisateur?.copyWith(
+                                    photo: Value(_photo),
+                                  ),
+                                  rayon: 100,
+                                ),
+                              ),
+                            ),
+                          ),
+                          child: AvatarUtilisateur(
+                            utilisateur: widget.utilisateur?.copyWith(
+                              photo: Value(_photo),
+                            ),
+                            rayon: 26,
+                          ),
+                        ),
+                        Positioned(
+                          right: -8,
+                          bottom: -8,
+                          child: PopupMenuButton<String>(
+                            tooltip: 'Gérer la photo de profil',
+                            icon: const Icon(Icons.more_vert, size: 18),
+                            onSelected: (action) {
+                              if (action == 'ajouter') {
+                                _choisirPhoto();
+                              } else {
+                                setState(() => _photo = '');
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'ajouter',
+                                child: ListTile(
+                                  leading: Icon(Icons.add_a_photo_outlined),
+                                  title: Text('Ajouter ou remplacer'),
+                                  dense: true,
+                                ),
+                              ),
+                              if ((_photo ?? '').isNotEmpty)
+                                const PopupMenuItem(
+                                  value: 'supprimer',
+                                  child: ListTile(
+                                    leading: Icon(Icons.delete_outline),
+                                    title: Text('Supprimer la photo'),
+                                    dense: true,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -897,22 +964,6 @@ class _DialogueUtilisateurState extends ConsumerState<DialogueUtilisateur> {
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 4),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: _choisirPhoto,
-                                icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                                label: const Text('Choisir une photo'),
-                              ),
-                              if ((_photo ?? '').isNotEmpty)
-                                TextButton.icon(
-                                  onPressed: () => setState(() => _photo = ''),
-                                  icon: const Icon(Icons.delete_outline, size: 18),
-                                  label: const Text('Retirer'),
-                                ),
-                            ],
-                          ),
                           const Text(
                             'Facultatif — une initiale est affichée à défaut.',
                             style: TextStyle(fontSize: 11.5),
@@ -935,7 +986,9 @@ class _DialogueUtilisateurState extends ConsumerState<DialogueUtilisateur> {
                     controller: _prenom,
                     label: 'Prénom',
                     prefixIcon: Icons.badge_outlined,
-                    valeurs: _valeursExistantes((u) => u.prenomUtilisateur ?? ''),
+                    valeurs: _valeursExistantes(
+                      (u) => u.prenomUtilisateur ?? '',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -959,14 +1012,12 @@ class _DialogueUtilisateurState extends ConsumerState<DialogueUtilisateur> {
                     ),
                     items: [
                       for (final r in RoleUtilisateur.values)
-                        DropdownMenuItem(
-                          value: r.code,
-                          child: Text(r.libelle),
-                        ),
+                        DropdownMenuItem(value: r.code, child: Text(r.libelle)),
                     ],
                     onChanged: admin && !estSonPropreCompte
                         ? (v) => setState(
-                            () => _role = v ?? RoleUtilisateur.gestionnaire.code,
+                            () =>
+                                _role = v ?? RoleUtilisateur.gestionnaire.code,
                           )
                         : null,
                   ),
@@ -1046,7 +1097,8 @@ class _DialogueUtilisateurState extends ConsumerState<DialogueUtilisateur> {
                         return 'Le mot de passe initial est obligatoire.';
                       }
                       if (v!.length <
-                          AuthentificationRepository.longueurMotDePasseMinimum) {
+                          AuthentificationRepository
+                              .longueurMotDePasseMinimum) {
                         return 'Au moins '
                             '${AuthentificationRepository.longueurMotDePasseMinimum} '
                             'caractères.';
@@ -1108,11 +1160,7 @@ class _DialogueUtilisateurState extends ConsumerState<DialogueUtilisateur> {
 
   List<String> _valeursExistantes(String Function(Utilisateur) f) {
     final liste = ref.watch(comptesUtilisateursProvider).value ?? const [];
-    return liste
-        .map(f)
-        .where((v) => v.trim().isNotEmpty)
-        .toSet()
-        .toList();
+    return liste.map(f).where((v) => v.trim().isNotEmpty).toSet().toList();
   }
 
   Future<void> _choisirPhoto() async {
@@ -1164,8 +1212,8 @@ class _DialogueUtilisateurState extends ConsumerState<DialogueUtilisateur> {
         // Le profil affiché (pied de page, écran profil) est actualisé
         // immédiatement si c'est le compte connecté.
         if (connecte != null && connecte.id == id) {
-          ref.read(sessionUtilisateurProvider.notifier).state =
-              await depot.parId(id);
+          ref.read(sessionUtilisateurProvider.notifier).state = await depot
+              .parId(id);
         }
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -1412,9 +1460,7 @@ class _Bandeau extends StatelessWidget {
             color: couleur,
           ),
           const SizedBox(width: 10),
-          Expanded(
-            child: Text(texte, style: const TextStyle(fontSize: 12.5)),
-          ),
+          Expanded(child: Text(texte, style: const TextStyle(fontSize: 12.5))),
         ],
       ),
     );

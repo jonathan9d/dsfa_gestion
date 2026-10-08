@@ -77,20 +77,6 @@ final databaseBootstrapProvider = FutureProvider<void>((ref) async {
         tousParametres[ReglagesAffichage.cleTheme],
       );
 
-  // Sauvegarde automatique : au plus une par jour d'ouverture.
-  if (reglages.sauvegardeAutomatique) {
-    const cleDate = 'sauvegarde_automatique_date';
-    final aujourdhui = DateTime.now().toIso8601String().substring(0, 10);
-    if (await parameters.lire(cleDate) != aujourdhui) {
-      try {
-        await ref.read(sauvegardeServiceProvider).sauvegarder();
-        await parameters.ecrire(cleDate, aujourdhui);
-      } catch (_) {
-        // Une sauvegarde automatique ne doit jamais bloquer le démarrage.
-      }
-    }
-  }
-
   // Les règles de la feuille PARAMETRES sont chargées même pour une base déjà
   // initialisée : elles doivent toujours refléter le classeur de référence.
   if (await parameters.lire(ExcelImportService.cleParametres) == null) {

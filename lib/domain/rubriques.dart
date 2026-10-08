@@ -1,5 +1,7 @@
 import 'package:meta/meta.dart';
 
+import 'configuration/configuration_app.dart';
+
 /// Résolution des **rubriques budgétaires**.
 ///
 /// Une ligne budgétaire n'a jamais de rubrique « libre » : sa rubrique est
@@ -253,6 +255,47 @@ class RubriquesBudget {
       }
     }
     return aPreciser;
+  }
+
+  /// Liste de rubriques **complète** : celles de la configuration d'abord
+  /// (créées ou renommées par l'utilisateur), puis celles du référentiel des
+  /// tarifs — sans doublon.
+  static List<String> listeAvecConfiguration(
+    ConfigurationApp configuration,
+    Iterable<String> rubriquesReferentiel,
+  ) => depuisTarifs([...configuration.nomsRubriques, ...rubriquesReferentiel]);
+
+  /// Rubrique à retenir en tenant compte de la **configuration** :
+  ///
+  /// 1. l'affectation explicite ligne → rubrique (Configuration ▸ Rubriques) ;
+  /// 2. sinon la détection automatique par mots-clés, en ne proposant que les
+  ///    rubriques réellement déclarées (configuration + référentiel).
+  static String resoudreAvec({
+    required ConfigurationApp configuration,
+    required String ligneBudgetaire,
+    String? typeBudget,
+    String? rubriqueEnregistree,
+    Iterable<String> rubriquesReferentiel = const [],
+  }) {
+    final affectee = configuration.rubriquePourLigne(ligneBudgetaire);
+    if (affectee != null && affectee.trim().isNotEmpty) return affectee;
+    final rubriques = listeAvecConfiguration(
+      configuration,
+      rubriquesReferentiel,
+    );
+    if (rubriques.isEmpty) return aPreciser;
+    // Une rubrique « libre » ou « à préciser » n'est jamais conservée : elle
+    // est remplacée par la détection automatique dès que les paramètres en
+    // proposent une.
+    final enregistree = estLibre(rubriqueEnregistree ?? '')
+        ? null
+        : rubriqueEnregistree;
+    return resoudre(
+      ligneBudgetaire: ligneBudgetaire,
+      typeBudget: typeBudget,
+      rubriqueEnregistree: enregistree,
+      rubriques: rubriques,
+    );
   }
 
   /// La rubrique est-elle déclarée dans les paramètres ?

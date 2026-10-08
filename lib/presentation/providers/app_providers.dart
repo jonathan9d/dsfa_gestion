@@ -31,7 +31,7 @@ final sidebarReduiteProvider = StateProvider<bool>((ref) => false);
 
 /// L'écran de démarrage a-t-il été affiché suffisamment longtemps ?
 /// Tant qu'il est à `false`, l'application reste sur l'écran de démarrage.
-final demarrageTermineProvider = StateProvider<bool>((ref) => true);
+final demarrageTermineProvider = StateProvider<bool>((ref) => false);
 
 /// Notifie le routeur lorsque l'état de connexion change, afin que
 /// la redirection (connexion ↔ application) soit appliquée immédiatement.
@@ -164,9 +164,8 @@ final syntheseIndemnitesProvider =
 /// Saisies d'indemnités d'une activité (dossier PJ ▸ indemnités).
 final indemnitesSaisiesActiviteProvider =
     StreamProvider.family<List<IndemniteSaisie>, String>(
-      (ref, code) => ref
-          .watch(indemnitesSaisiesRepositoryProvider)
-          .watchParActivite(code),
+      (ref, code) =>
+          ref.watch(indemnitesSaisiesRepositoryProvider).watchParActivite(code),
     );
 
 // --- Contrôle PJ ---
@@ -277,8 +276,9 @@ final repartitionActivitesProvider = FutureProvider<List<SeriePoint>>((
 
 /// Rapport financier : budget alloué vs dépenses réalisées, par ligne
 /// budgétaire (alimenté automatiquement par le dossier PJ).
-final rapportFinancierProvider =
-    FutureProvider<ResumeRapportFinancier>((ref) async {
+final rapportFinancierProvider = FutureProvider<ResumeRapportFinancier>((
+  ref,
+) async {
   ref.watch(toutesLignesBudgetProvider);
   ref.watch(depensesProvider);
   ref.watch(activitesProvider);
@@ -310,4 +310,8 @@ final reglesParametresProvider = FutureProvider<ReglesParametres>((ref) async {
 
 final auditProvider = FutureProvider((ref) async {
   return ref.watch(auditRepositoryProvider).recents();
+});
+
+final auditCountProvider = StreamProvider<int>((ref) {
+  return ref.watch(auditRepositoryProvider).watchNombre();
 });

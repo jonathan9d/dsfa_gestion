@@ -32,6 +32,7 @@ class _RapportsScreenState extends ConsumerState<RapportsScreen> {
         children: [
           EnTetePage(
             titre: 'Rapports',
+            module: 'rapports',
             sousTitre: 'Import Excel, export Excel et export PDF',
             actions: [
               OutlinedButton.icon(

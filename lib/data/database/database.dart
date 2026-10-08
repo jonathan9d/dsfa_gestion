@@ -41,7 +41,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -75,6 +75,10 @@ class AppDatabase extends _$AppDatabase {
       // Version 5 : table des saisies d'indemnités (dossier PJ).
       if (from < 5) {
         await m.createTable(indemnitesSaisies);
+      }
+      // Version 6 : bénéficiaire du journal des dépenses.
+      if (from < 6) {
+        await m.addColumn(depenses, depenses.beneficiaire);
       }
     },
   );

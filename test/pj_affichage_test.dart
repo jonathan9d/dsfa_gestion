@@ -213,10 +213,13 @@ void main() {
 
     expect(find.text('RESTAURATION'), findsWidgets);
     expect(find.textContaining('BON DE COMMANDE'), findsWidgets);
-    expect(
-      find.textContaining('Vérifier les dates selon les règles'),
-      findsWidgets,
-    );
+    expect(find.text('Pièce justificative requise'), findsOneWidget);
+    expect(find.text('Reçue'), findsOneWidget);
+    expect(find.text('Date PJ'), findsOneWidget);
+    expect(find.text('Date conforme'), findsOneWidget);
+    expect(find.byType(DataTable), findsOneWidget);
+    expect(find.textContaining('Budget :'), findsNothing);
+    expect(find.textContaining('Lignes budgétaires rattachées'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
     await stabiliser(tester);
@@ -231,6 +234,23 @@ void main() {
     // Une ligne par participant affecté.
     expect(find.text('Rakoto Jean'), findsWidgets);
     expect(find.textContaining('Jours d’activité'), findsWidgets);
+
+    await tester.tap(find.byKey(const ValueKey('jours-activite-1')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Cochez les jours de présence'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('presence-jour-2026-09-29T00:00:00.000')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+
+    final presences = await db.select(db.presences).get();
+    expect(
+      presences.where((p) => p.statut == 'Présent').map((p) => p.date.day),
+      [29],
+    );
 
     await tester.pumpWidget(const SizedBox());
     await stabiliser(tester);

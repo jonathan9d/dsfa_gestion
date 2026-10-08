@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../domain/configuration/configuration_app.dart';
 import '../../domain/statuts.dart';
+import '../../services/son_service.dart';
+import '../reglages/reglages_affichage.dart';
 
 final _fmtMontant = NumberFormat('#,##0', 'fr_FR');
 final _fmtDate = DateFormat('dd/MM/yyyy');
@@ -122,11 +126,18 @@ class TitreDialogue extends StatelessWidget {
 }
 
 /// En-tête de page avec titre, sous-titre et actions.
+///
+/// Quand [module] est fourni, le titre, le sous-titre et la couleur viennent
+/// de la **configuration** : l'utilisateur peut renommer l'onglet et son
+/// bouton « Configuration » ouvre directement ses réglages. Le titre passé en
+/// paramètre reste la valeur de repli (tests, écrans sans module).
 class EnTetePage extends StatelessWidget {
   const EnTetePage({
     required this.titre,
     this.sousTitre,
     this.actions = const [],
+    this.module,
+    this.afficherAccesConfiguration = true,
     super.key,
   });
 
@@ -134,9 +145,36 @@ class EnTetePage extends StatelessWidget {
   final String? sousTitre;
   final List<Widget> actions;
 
+  /// Clé du module de configuration (`depenses`, `budgets`…).
+  final String? module;
+
+  final bool afficherAccesConfiguration;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final configuration = ConfigurationApp.of(context);
+    final reglage = module == null ? null : configuration.module(module!);
+    final titreAffiche = (reglage?.titre.trim().isNotEmpty ?? false)
+        ? reglage!.titre
+        : titre;
+    final sousTitreAffiche = reglage == null
+        ? sousTitre
+        : (reglage.sousTitre.trim().isEmpty ? null : reglage.sousTitre);
+    final couleur = reglage?.couleurAffichee ?? theme.colorScheme.primary;
+    final accesConfiguration =
+        afficherAccesConfiguration &&
+        (reglage?.actionAutorisee(ActionsApp.configuration) ?? true);
+    // Fenêtre étroite (ou peu haute) : le bouton devient une icône compacte.
+    // L'en-tête tient ainsi sur une seule ligne et rien n'est jamais rogné —
+    // l'accès à la configuration reste toujours à portée de clic.
+    final largeurEcran = MediaQuery.sizeOf(context).width;
+    final configurationCompacte = largeurEcran < 900;
+    void ouvrirConfiguration() => context.go(
+      reglage == null
+          ? '/parametres?onglet=configuration'
+          : '/parametres?onglet=configuration&module=${reglage.cle}',
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
       child: Row(
@@ -147,7 +185,7 @@ class EnTetePage extends StatelessWidget {
             height: 34,
             margin: const EdgeInsets.only(top: 4, right: 12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
+              color: couleur,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -156,17 +194,18 @@ class EnTetePage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  titre,
+                  titreAffiche,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    // Charte DSFa : titres / en-têtes en rose institutionnel.
+                    // Charte DSFa : titres / en-têtes en rose institutionnel
+                    // (couleur personnalisable onglet par onglet).
                     color: theme.colorScheme.primary,
                   ),
                 ),
-                if (sousTitre != null) ...[
+                if (sousTitreAffiche != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    sousTitre!,
+                    sousTitreAffiche,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       // Charte DSFa : sous-titres en violet.
                       color: theme.colorScheme.secondary,
@@ -177,8 +216,35 @@ class EnTetePage extends StatelessWidget {
               ],
             ),
           ),
-          if (actions.isNotEmpty)
-            Wrap(spacing: 8, runSpacing: 8, children: actions),
+          if (actions.isNotEmpty || accesConfiguration)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...actions,
+                if (accesConfiguration)
+                  if (configurationCompacte)
+                    IconButton.filledTonal(
+                      tooltip:
+                          'Configuration de « $titreAffiche » : titres, '
+                          'champs, formules, valeurs, couleurs, actions',
+                      onPressed: ouvrirConfiguration,
+                      icon: const Icon(Icons.tune, size: 18),
+                      visualDensity: VisualDensity.compact,
+                    )
+                  else
+                    Tooltip(
+                      message:
+                          'Personnaliser « $titreAffiche » : titres, champs, '
+                          'formules, valeurs, couleurs et actions',
+                      child: FilledButton.tonalIcon(
+                        onPressed: ouvrirConfiguration,
+                        icon: const Icon(Icons.tune, size: 18),
+                        label: const Text('Configuration'),
+                      ),
+                    ),
+              ],
+            ),
         ],
       ),
     );
@@ -388,7 +454,12 @@ class PastilleStatut extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final couleur = statut.color(scheme);
+    // La couleur et l'icône viennent de la configuration : chaque statut peut
+    // être recoloré (Paramètres ▸ Configuration ▸ Statuts & couleurs).
+    final configuration = ConfigurationApp.of(context);
+    final couleur =
+        configuration.couleurStatut(statut.libelle) ?? statut.color(scheme);
+    final icone = configuration.iconeStatut(statut.libelle) ?? statut.icon;
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 10,
@@ -402,7 +473,7 @@ class PastilleStatut extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(statut.icon, size: compact ? 12 : 14, color: couleur),
+          Icon(icone, size: compact ? 12 : 14, color: couleur),
           const SizedBox(width: 5),
           Text(
             statut.libelle,
@@ -762,6 +833,9 @@ Future<bool> confirmer(
 /// Notification (message court en bas de l'écran).
 void notifier(BuildContext context, String message, {bool erreur = false}) {
   final theme = Theme.of(context);
+  if (erreur) {
+    jouerSonApp(actif: ReglagesAffichage.of(context).sonActif, erreur: true);
+  }
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -841,8 +915,9 @@ String? validateurAnnee(String? valeur, {String champ = 'L’année'}) {
   if (manquant != null) return manquant;
   final n = int.tryParse(valeur!.trim());
   if (n == null) return '$champ : nombre entier attendu';
-  if (n < 2000 || n > 2100)
+  if (n < 2000 || n > 2100) {
     return '$champ doit être comprise entre 2000 et 2100';
+  }
   return null;
 }
 

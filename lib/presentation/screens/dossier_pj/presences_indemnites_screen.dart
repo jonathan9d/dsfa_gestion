@@ -341,6 +341,7 @@ class _Vue extends ConsumerWidget {
             child: TableauGestion<FicheParticipant>(
               lignes: fiches,
               cleLigne: (f) => f.participantId,
+              cleModule: 'dossier_pj_presences',
               messageVide:
                   'Aucun participant affecté à cette activité.\n'
                   'Affectez des participants depuis l’écran « Activités », '
@@ -552,6 +553,8 @@ int joursPeriodeDe(Activite? a) {
   return f.difference(d).inDays + 1;
 }
 
+DateTime _jourCivil(DateTime date) => DateTime(date.year, date.month, date.day);
+
 /// Les jours d'activité d'un participant ne peuvent jamais dépasser la durée
 /// de l'activité : la fiche de présence serait incohérente.
 String? validateurJoursActivite(String? valeur, {required int joursPeriode}) {
@@ -649,10 +652,24 @@ class _CelluleJours extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final presences =
+        ref.watch(presencesActiviteProvider(activiteCode)).value ??
+        const <Presence>[];
+    final presenceParticipant = presences
+        .where((p) => p.participantId == fiche.participantId)
+        .toList();
+    final joursCoches = <DateTime>{
+      for (final presence in presenceParticipant)
+        if (presence.statut == 'Présent') _jourCivil(presence.date),
+    };
+    if (presenceParticipant.isEmpty && activite?.dateDebut != null) {
+      final debut = _jourCivil(activite!.dateDebut!);
+      for (var i = 0; i < fiche.joursActivite; i++) {
+        joursCoches.add(debut.add(Duration(days: i)));
+      }
+    }
     return Tooltip(
-      message:
-          'Modifier le nombre de jours d’activité\n'
-          '(la présence du participant est mise à jour automatiquement)',
+      message: 'Modifier les jours de présence sur le calendrier',
       child: InkWell(
         // Clé stable : la cellule est la cible d'un test de bout en bout
         // (« jours d'activité → fiche de présence »).
@@ -665,6 +682,7 @@ class _CelluleJours extends ConsumerWidget {
             activite: activite,
             fiche: fiche,
             joursUniquement: true,
+            joursSelectionnes: joursCoches,
           ),
         ),
         child: Container(
@@ -703,12 +721,14 @@ class _FicheDialog extends ConsumerStatefulWidget {
     required this.fiche,
     this.activite,
     this.joursUniquement = false,
+    this.joursSelectionnes,
   });
 
   final String activiteCode;
   final FicheParticipant fiche;
   final Activite? activite;
   final bool joursUniquement;
+  final Set<DateTime>? joursSelectionnes;
 
   @override
   ConsumerState<_FicheDialog> createState() => _FicheDialogState();
@@ -723,6 +743,7 @@ class _FicheDialogState extends ConsumerState<_FicheDialog> {
   late final TextEditingController _provenance;
   String _etat = 'À payer';
   late bool _restauration;
+  Set<DateTime>? _joursSelectionnes;
 
   static String _chiffre(num v) =>
       v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(2);
@@ -738,6 +759,7 @@ class _FicheDialogState extends ConsumerState<_FicheDialog> {
     _provenance = TextEditingController(text: f.provenance);
     _etat = f.etatPaiement;
     _restauration = f.restauration;
+    _joursSelectionnes = widget.joursSelectionnes?.toSet();
   }
 
   @override
@@ -753,6 +775,9 @@ class _FicheDialogState extends ConsumerState<_FicheDialog> {
       0;
 
   Future<void> _enregistrer() async {
+    if (_joursSelectionnes != null) {
+      _jours.text = _joursSelectionnes!.length.toString();
+    }
     if (!_formKey.currentState!.validate()) return;
     final jours = _nombre(_jours);
     final delai = _nombre(_delai);
@@ -822,7 +847,10 @@ class _FicheDialogState extends ConsumerState<_FicheDialog> {
     final total = f.difference(d).inDays + 1;
     for (var i = 0; i < total; i++) {
       final date = d.add(Duration(days: i));
-      final present = i < jours;
+      final selection = _joursSelectionnes;
+      final present = selection == null
+          ? i < jours
+          : selection.contains(_jourCivil(date));
       await repo.upsert(
         PresencesCompanion(
           activiteCode: drift.Value(widget.activiteCode),
@@ -833,6 +861,91 @@ class _FicheDialogState extends ConsumerState<_FicheDialog> {
         ),
       );
     }
+  }
+
+  Widget _calendrierPresence(BuildContext context, int joursPeriode) {
+    final debutBrut = widget.activite?.dateDebut;
+    final finBrute = widget.activite?.dateFin;
+    if (debutBrut == null || finBrute == null) {
+      return const Text(
+        'Renseignez les dates de l’activité pour afficher le calendrier.',
+      );
+    }
+    final debut = _jourCivil(debutBrut);
+    final fin = _jourCivil(finBrute);
+    final nombre = fin.difference(debut).inDays + 1;
+    if (nombre <= 0) {
+      return const Text('La période de l’activité n’est pas valide.');
+    }
+    final selection = _joursSelectionnes ??= <DateTime>{};
+    final cases = <Widget>[
+      for (final jour in const ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'])
+        Center(
+          child: Text(jour, style: Theme.of(context).textTheme.labelSmall),
+        ),
+      for (var i = 1; i < debut.weekday; i++) const SizedBox.shrink(),
+      for (var i = 0; i < nombre; i++)
+        _caseJour(debut.add(Duration(days: i)), selection),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cochez les jours de présence — ${selection.length} jour(s)',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        GridView.count(
+          crossAxisCount: 7,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 6,
+          childAspectRatio: 1.5,
+          children: cases,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Période : $joursPeriode jour(s)',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  Widget _caseJour(DateTime date, Set<DateTime> selection) {
+    final active = selection.contains(date);
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      key: ValueKey('presence-jour-${date.toIso8601String()}'),
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => setState(() {
+        if (!selection.remove(date)) selection.add(date);
+        _jours.text = selection.length.toString();
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        decoration: BoxDecoration(
+          color: active ? scheme.primaryContainer : scheme.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: active ? scheme.primary : scheme.outlineVariant,
+          ),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${date.day}'),
+              if (active) ...[
+                const SizedBox(width: 2),
+                Icon(Icons.check, size: 14, color: scheme.primary),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _synchroniserJournal() async {
@@ -874,9 +987,9 @@ class _FicheDialogState extends ConsumerState<_FicheDialog> {
     return AlertDialog(
       title: TitreDialogue(
         titre,
-        sousTitre:
-            'Le nombre de jours d’activité met à jour la présence du '
-            'participant dans l’activité.',
+        sousTitre: widget.joursUniquement
+            ? 'Cochez les dates où le participant était présent.'
+            : 'La présence du participant suit le nombre de jours d’activité.',
         icone: Icons.event_available_outlined,
       ),
       content: SizedBox(
@@ -888,23 +1001,29 @@ class _FicheDialogState extends ConsumerState<_FicheDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ChampNombre(
-                  controller: _jours,
-                  label: 'Jours d’activité (présence) *',
-                  step: 1,
-                  onChanged: () => setState(() {}),
-                  validator: (v) =>
-                      validateurJoursActivite(v, joursPeriode: joursPeriode),
-                ),
+                if (widget.joursUniquement)
+                  _calendrierPresence(context, joursPeriode)
+                else
+                  ChampNombre(
+                    controller: _jours,
+                    label: 'Jours d’activité (présence) *',
+                    step: 1,
+                    onChanged: () => setState(() {}),
+                    validator: (v) =>
+                        validateurJoursActivite(v, joursPeriode: joursPeriode),
+                  ),
                 const SizedBox(height: 4),
-                Text(
-                  joursPeriode > 0
-                      ? 'Période de l’activité : $joursPeriode jour(s). Les N '
-                            'premiers jours seront marqués « Présent ».'
-                      : 'Renseignez les dates de l’activité pour générer la '
-                            'fiche de présence.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                if (widget.joursUniquement)
+                  const SizedBox.shrink()
+                else
+                  Text(
+                    joursPeriode > 0
+                        ? 'Période de l’activité : $joursPeriode jour(s). Les N '
+                              'premiers jours seront marqués « Présent ».'
+                        : 'Renseignez les dates de l’activité pour générer la '
+                              'fiche de présence.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 const SizedBox(height: 10),
                 if (!widget.joursUniquement) ...[
                   Row(

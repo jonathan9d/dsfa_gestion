@@ -100,8 +100,14 @@ class _ChecklistPJScreenState extends ConsumerState<ChecklistPJScreen> {
           }
         });
       }
-    } catch (_) {
-      // Données illisibles : on repart d'une checklist vierge.
+    } catch (error) {
+      if (mounted) {
+        notifier(
+          context,
+          'Impossible de charger la checklist : $error',
+          erreur: true,
+        );
+      }
     }
     if (mounted) setState(() {});
   }
@@ -117,6 +123,14 @@ class _ChecklistPJScreenState extends ConsumerState<ChecklistPJScreen> {
             _cle(activite),
             jsonEncode(_etats.map((k, v) => MapEntry(k, v.toJson()))),
           );
+    } catch (error) {
+      if (mounted) {
+        notifier(
+          context,
+          'Impossible d’enregistrer la checklist : $error',
+          erreur: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _enregistrementEnCours = false);
     }
@@ -138,12 +152,7 @@ class _ChecklistPJScreenState extends ConsumerState<ChecklistPJScreen> {
 
     final corps = Column(
       children: [
-        if (!widget.imbrique)
-          const EnTetePage(
-            titre: 'Pièces justificatives',
-            sousTitre:
-                'Checklist des pièces requises par rubrique (paramètres)',
-          ),
+        if (!widget.imbrique) const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Row(
@@ -180,11 +189,11 @@ class _ChecklistPJScreenState extends ConsumerState<ChecklistPJScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              if (_activiteChargee != null)
-                FilledButton.tonalIcon(
-                  onPressed: _enregistrementEnCours ? null : _enregistrer,
-                  icon: const Icon(Icons.save_outlined, size: 18),
-                  label: const Text('Enregistrer la checklist'),
+              if (_enregistrementEnCours)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
             ],
           ),
@@ -258,8 +267,6 @@ class _Liste extends ConsumerWidget {
     // engagées par l'activité (lignes budgétaires) ; à défaut, toutes celles
     // de la matrice.
     final rubriques = <String>[];
-    final montants = <String, double>{};
-    final lignesParRubrique = <String, List<String>>{};
     for (final l in budgets) {
       final r = RubriquesBudget.resoudre(
         ligneBudgetaire: l.ligneBudgetaire,
@@ -269,8 +276,6 @@ class _Liste extends ConsumerWidget {
             : rubriquesReferentiel,
       );
       if (!rubriques.contains(r)) rubriques.add(r);
-      montants[r] = (montants[r] ?? 0) + l.montantAlloue;
-      lignesParRubrique.putIfAbsent(r, () => <String>[]).add(l.ligneBudgetaire);
     }
     if (rubriques.isEmpty) rubriques.addAll(regles.rubriques);
 
@@ -291,43 +296,125 @@ class _Liste extends ConsumerWidget {
             : r,
     ];
 
-    var totalPieces = 0;
-    var totalPretes = 0;
-    for (final r in rubriquesAffichees) {
-      final etat = etats[r];
-      for (final p in regles.piecesPour(r)) {
-        totalPieces++;
-        final e = etat?.pieces[p.libelle];
-        if (e != null && e.recue && e.dateConforme) totalPretes++;
-      }
+    final lignes = <({String rubrique, ReglePJRequise piece})>[
+      for (final rubrique in rubriquesAffichees)
+        for (final piece in regles.piecesPour(rubrique))
+          (rubrique: rubrique, piece: piece),
+    ];
+    if (lignes.isEmpty) {
+      return const EtatVide(
+        message: 'Aucune pièce justificative requise pour cette activité.',
+        icone: Icons.checklist_outlined,
+      );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      children: [
-        _Avancement(pretes: totalPretes, total: totalPieces),
-        const SizedBox(height: 12),
-        for (final rubrique in rubriquesAffichees)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: _CarteRubrique(
-              rubrique: rubrique,
-              pieces: regles.piecesPour(rubrique),
-              etat: etatDe(rubrique),
-              montant: montants[rubrique] ?? 0,
-              lignes: lignesParRubrique[rubrique] ?? const [],
-              activite: activite,
-              onChanger: onChanger,
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: scheme.outlineVariant),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Scrollbar(
+            child: SingleChildScrollView(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor: WidgetStatePropertyAll(
+                    scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                  ),
+                  dataRowMinHeight: 48,
+                  dataRowMaxHeight: 64,
+                  columns: const [
+                    DataColumn(label: Text('Rubrique')),
+                    DataColumn(label: Text('Pièce justificative requise')),
+                    DataColumn(label: Text('Reçue')),
+                    DataColumn(label: Text('Date PJ')),
+                    DataColumn(label: Text('Date conforme')),
+                  ],
+                  rows: [
+                    for (final ligne in lignes)
+                      _ligneChecklist(
+                        context: context,
+                        ligne: ligne,
+                        etat: etatDe(ligne.rubrique),
+                        activite: activite,
+                        onChanger: onChanger,
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  DataRow _ligneChecklist({
+    required BuildContext context,
+    required ({String rubrique, ReglePJRequise piece}) ligne,
+    required EtatRubrique etat,
+    required Activite? activite,
+    required void Function(VoidCallback) onChanger,
+  }) {
+    final etatPiece = etat.pieces[ligne.piece.libelle];
+    return DataRow(
+      cells: [
+        DataCell(Text(ligne.rubrique)),
+        DataCell(Text(ligne.piece.libelle)),
+        DataCell(
+          Checkbox(
+            value: etatPiece?.recue ?? false,
+            onChanged: (value) => onChanger(
+              () => (etat.pieces[ligne.piece.libelle] ??= EtatPiece()).recue =
+                  value == true,
+            ),
+          ),
+        ),
+        DataCell(
+          TextButton(
+            onPressed: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate:
+                    etat.datePJ ?? activite?.dateDebut ?? DateTime.now(),
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2100),
+              );
+              if (date != null) onChanger(() => etat.datePJ = date);
+            },
+            child: Text(
+              etat.datePJ == null ? 'Choisir' : formatDate(etat.datePJ),
+            ),
+          ),
+        ),
+        DataCell(
+          Checkbox(
+            value: etatPiece?.dateConforme ?? false,
+            onChanged: (value) => onChanger(
+              () =>
+                  (etat.pieces[ligne.piece.libelle] ??= EtatPiece())
+                          .dateConforme =
+                      value == true,
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
 /// Barre d'avancement globale de la checklist.
-class _Avancement extends StatelessWidget {
-  const _Avancement({required this.pretes, required this.total});
+class AvancementChecklist extends StatelessWidget {
+  const AvancementChecklist({
+    required this.pretes,
+    required this.total,
+    super.key,
+  });
   final int pretes;
   final int total;
 
@@ -385,8 +472,8 @@ class _Avancement extends StatelessWidget {
 }
 
 /// Une rubrique : ses pièces requises, sa date de PJ et sa part de budget.
-class _CarteRubrique extends StatelessWidget {
-  const _CarteRubrique({
+class CarteRubrique extends StatelessWidget {
+  const CarteRubrique({
     required this.rubrique,
     required this.pieces,
     required this.etat,
@@ -394,6 +481,7 @@ class _CarteRubrique extends StatelessWidget {
     required this.lignes,
     required this.activite,
     required this.onChanger,
+    super.key,
   });
 
   final String rubrique;

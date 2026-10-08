@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/database/database.dart';
 import '../../../domain/rubriques.dart';
+import '../../providers/configuration_providers.dart';
 import '../../../domain/services/regles_metier.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/providers.dart';
@@ -768,7 +769,14 @@ class _LigneBudgetDialogState extends ConsumerState<LigneBudgetDialog> {
     final liste =
         ref.read(valeursListeProvider('RUBRIQUE')).value ?? const <String>[];
     final vues = <String>[];
-    for (final brute in [...liste, ...tarifs.map((t) => t.rubrique)]) {
+    // Les rubriques de la configuration (créées ou renommées par
+    // l'utilisateur) font référence au même titre que le référentiel.
+    final configurees = ref.read(configurationProvider).nomsRubriques;
+    for (final brute in [
+      ...configurees,
+      ...liste,
+      ...tarifs.map((t) => t.rubrique),
+    ]) {
       final r = brute.trim();
       if (r.isEmpty) continue;
       if (vues.any(
@@ -784,11 +792,12 @@ class _LigneBudgetDialogState extends ConsumerState<LigneBudgetDialog> {
 
   /// Rubrique correspondante, **trouvée dans les paramètres** à partir du
   /// libellé de la ligne (et de son type) : il n'existe pas de rubrique libre.
-  String _rubriqueAutomatique(String ligne) => RubriquesBudget.resoudre(
+  String _rubriqueAutomatique(String ligne) => RubriquesBudget.resoudreAvec(
+    configuration: ref.read(configurationProvider),
     ligneBudgetaire: ligne,
     typeBudget: _type,
     rubriqueEnregistree: _rubrique.text,
-    rubriques: _rubriquesParametres,
+    rubriquesReferentiel: _rubriquesParametres,
   );
 
   void _confirmerMontantAlloue() {
@@ -802,6 +811,10 @@ class _LigneBudgetDialogState extends ConsumerState<LigneBudgetDialog> {
       return;
     }
     setState(() => _montantConfirme = true);
+  }
+
+  void _annulerConfirmationMontant() {
+    setState(() => _montantConfirme = false);
   }
 
   /// Sélection d'une ligne budgétaire : **type déduit automatiquement** et
@@ -1022,14 +1035,18 @@ class _LigneBudgetDialogState extends ConsumerState<LigneBudgetDialog> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: FilledButton.tonalIcon(
-                        onPressed: _confirmerMontantAlloue,
+                        onPressed: _montantConfirme
+                            ? _annulerConfirmationMontant
+                            : _confirmerMontantAlloue,
                         icon: Icon(
                           _montantConfirme
-                              ? Icons.check_circle
+                              ? Icons.undo_outlined
                               : Icons.verified_outlined,
                         ),
                         label: Text(
-                          _montantConfirme ? 'Montant confirmé' : 'Confirmer',
+                          _montantConfirme
+                              ? 'Annuler la confirmation'
+                              : 'Confirmer',
                         ),
                       ),
                     ),

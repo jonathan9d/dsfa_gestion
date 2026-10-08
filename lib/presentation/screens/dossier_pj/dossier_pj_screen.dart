@@ -24,6 +24,7 @@ class DossierPjScreen extends StatelessWidget {
           children: [
             EnTetePage(
               titre: 'Dossier PJ',
+              module: 'dossier_pj',
               sousTitre:
                   'Présences et indemnités des participants, puis checklist '
                   'des pièces justificatives requises',

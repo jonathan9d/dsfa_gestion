@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../domain/configuration/configuration_app.dart';
 import '../providers/app_providers.dart';
 import '../screens/activites/activites_screen.dart';
 import '../screens/authentification/accueil_screen.dart';
@@ -13,6 +14,7 @@ import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/demarrage/demarrage_screen.dart';
 import '../screens/depenses/depenses_screen.dart';
 import '../screens/dossier_pj/dossier_pj_screen.dart';
+import '../screens/onglets_personnalises/onglet_personnalise_screen.dart';
 import '../screens/participants/participants_screen.dart';
 import '../screens/rapports/rapports_screen.dart';
 import '../screens/rapprochement/rapprochement_screen.dart';
@@ -43,6 +45,14 @@ class AppRoutes {
   static const parametres = '/parametres';
   static const sauvegardes = '/sauvegardes';
   static const suivi = '/suivi';
+
+  /// Adresse d'un onglet **créé** dans la configuration.
+  static String ongletPersonnalise(String cle) => '/onglet/$cle';
+
+  /// Adresse de la configuration, éventuellement centrée sur un module.
+  static String configuration([String? module]) => module == null
+      ? '$parametres?onglet=configuration'
+      : '$parametres?onglet=configuration&module=$module';
 }
 
 /// Entrée de navigation (utilisée par la sidebar et la barre mobile).
@@ -54,6 +64,7 @@ class EntreeNavigation {
     this.iconPlein,
     this.groupe = '',
     this.roleRequis = false,
+    this.iconeImportee,
   });
 
   final String path;
@@ -62,6 +73,9 @@ class EntreeNavigation {
 
   /// Icône pleine, affichée lorsque l'onglet est actif.
   final IconData? iconPlein;
+
+  /// Image importée dans la configuration (remplace [icon] quand elle existe).
+  final String? iconeImportee;
 
   final String groupe;
 
@@ -143,6 +157,46 @@ const entreesNavigation = <EntreeNavigation>[
     groupe: 'Administration',
   ),
 ];
+
+/// Entrées de navigation **effectives** : les onglets livrés reçoivent leur
+/// titre, leur icône et leur couleur de la configuration, puis les onglets
+/// créés par l'utilisateur sont ajoutés à la suite. Un onglet masqué disparaît
+/// du menu sans que rien ne soit perdu.
+List<EntreeNavigation> entreesNavigationPour(ConfigurationApp configuration) {
+  final entrees = <EntreeNavigation>[];
+  for (final entree in entreesNavigation) {
+    final module = configuration.moduleParRoute(entree.path);
+    if (module == null) {
+      entrees.add(entree);
+      continue;
+    }
+    if (!module.actif) continue;
+    entrees.add(
+      EntreeNavigation(
+        path: entree.path,
+        label: module.titre,
+        icon: module.iconeAffichee,
+        iconPlein: module.iconeAffichee,
+        iconeImportee: module.iconeImportee,
+        groupe: module.groupe.isEmpty ? entree.groupe : module.groupe,
+        roleRequis: entree.roleRequis,
+      ),
+    );
+  }
+  for (final module in configuration.ongletsPersonnalises) {
+    entrees.add(
+      EntreeNavigation(
+        path: AppRoutes.ongletPersonnalise(module.cle),
+        label: module.titre,
+        icon: module.iconeAffichee,
+        iconPlein: module.iconeAffichee,
+        iconeImportee: module.iconeImportee,
+        groupe: module.groupe,
+      ),
+    );
+  }
+  return entrees;
+}
 
 /// Routeur de l'application.
 ///
@@ -241,7 +295,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.parametres,
-            builder: (_, __) => const ParametresScreen(),
+            builder: (context, state) => ParametresScreen(
+              onglet: state.uri.queryParameters['onglet'],
+              moduleConfiguration: state.uri.queryParameters['module'],
+            ),
+          ),
+          // Onglets créés dans la configuration : le tableau affiché est
+          // piloté par la source et les champs choisis par l'utilisateur.
+          GoRoute(
+            path: '/onglet/:cle',
+            builder: (context, state) => OngletPersonnaliseScreen(
+              cle: state.pathParameters['cle'] ?? '',
+            ),
           ),
           GoRoute(
             path: AppRoutes.profil,

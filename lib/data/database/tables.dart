@@ -155,15 +155,15 @@ class IndemnitesSaisies extends Table {
   TextColumn get participantNom => text().withDefault(const Constant(''))();
 
   /// État de paiement : Payé, Partiel, À payer, Non payé.
-  TextColumn get etatPaiement => text().withDefault(const Constant('À payer'))();
+  TextColumn get etatPaiement =>
+      text().withDefault(const Constant('À payer'))();
 
   /// Provenance (district de l'activité) : détermine le taux applicable.
   TextColumn get provenance => text().nullable()();
 
   /// Délai de route (jours) et jours d'activité retenus.
   RealColumn get delaiRoute => real().withDefault(const Constant(0))();
-  RealColumn get nombreJoursActivite =>
-      real().withDefault(const Constant(0))();
+  RealColumn get nombreJoursActivite => real().withDefault(const Constant(0))();
   BoolColumn get restauration => boolean().withDefault(const Constant(false))();
 
   /// Taux journalier appliqué (règle chef-lieu de région / district).
@@ -211,6 +211,7 @@ class Depenses extends Table {
   TextColumn get codeActivite => text().nullable()();
   TextColumn get codeBudget => text().nullable()();
   TextColumn get designation => text().withDefault(const Constant(''))();
+  TextColumn get beneficiaire => text().nullable()();
 
   /// Contrôle PJ d'origine quand la ligne est créée/mise à jour par le
   /// dossier PJ (permet d'afficher le statut de conformité de la pièce).

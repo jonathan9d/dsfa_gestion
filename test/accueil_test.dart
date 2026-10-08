@@ -19,15 +19,17 @@ import 'package:dsfa_gestion/presentation/theme/comportement_defilement.dart';
 const _marqueurLogin = 'FORMULAIRE DE CONNEXION';
 
 /// Salutation attendue selon l'heure locale, comme l'écran d'accueil.
-String _salutationAttendue() =>
-    DateTime.now().hour < 18 ? 'Bonjour' : 'Bonsoir';
+String _salutationAttendue() => switch (DateTime.now().hour) {
+  < 12 => 'Bonjour',
+  < 18 => 'Bon après-midi',
+  _ => 'Bonsoir',
+};
 
 Future<AppDatabase> _basePrete() async {
   final db = AppDatabase.forTesting(NativeDatabase.memory());
-  await ParametresRepository(db).ecrire(
-    'classeur_reference_initialise_v1',
-    'test',
-  );
+  await ParametresRepository(
+    db,
+  ).ecrire('classeur_reference_initialise_v1', 'test');
   // Un compte administrateur existe déjà : l'écran d'accueil accueille
   // l'utilisateur (« Continuer ») au lieu de proposer de créer le compte.
   await db
@@ -46,15 +48,11 @@ Future<AppDatabase> _basePrete() async {
 GoRouter _routeur() => GoRouter(
   initialLocation: AppRoutes.accueil,
   routes: [
-    GoRoute(
-      path: AppRoutes.accueil,
-      builder: (_, _) => const AccueilScreen(),
-    ),
+    GoRoute(path: AppRoutes.accueil, builder: (_, _) => const AccueilScreen()),
     GoRoute(
       path: AppRoutes.connexion,
-      builder: (_, _) => const Scaffold(
-        body: Center(child: Text(_marqueurLogin)),
-      ),
+      builder: (_, _) =>
+          const Scaffold(body: Center(child: Text(_marqueurLogin))),
     ),
   ],
 );

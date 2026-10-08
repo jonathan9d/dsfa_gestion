@@ -9,10 +9,8 @@ import 'package:dsfa_gestion/presentation/providers/app_providers.dart';
 import 'package:dsfa_gestion/presentation/providers/providers.dart';
 import 'package:dsfa_gestion/presentation/screens/dossier_pj/presences_indemnites_screen.dart';
 
-/// Bout en bout : le nombre de **jours d'activité** se saisit dans le tableau du
-/// dossier PJ, et cette saisie **écrit la fiche de présence** du participant
-/// (les N premiers jours de l'activité sont « Présent », les suivants
-/// « Absent »), puis enregistre l'indemnité correspondante.
+/// Bout en bout : les dates de présence sont cochées dans le calendrier du
+/// dossier PJ et la sélection exacte est enregistrée avec l'indemnité.
 void main() {
   /// Activité du 28 au 30 septembre 2026 → 3 jours.
   final debut = DateTime(2026, 9, 28);
@@ -81,29 +79,29 @@ void main() {
     }
   }
 
-  testWidgets('les jours saisis écrivent la fiche de présence', (tester) async {
+  testWidgets('les dates cochées écrivent la fiche de présence', (
+    tester,
+  ) async {
     await pomper(tester);
     expect(tester.takeException(), isNull);
     expect(find.text('Rakoto Jean'), findsWidgets);
     // Aucune présence au départ.
     expect(await db.select(db.presences).get(), isEmpty);
 
-    // Un clic sur la cellule « jours d'activité » du participant.
+    // Un clic sur la cellule des jours ouvre le calendrier.
     await tester.tap(find.byKey(const ValueKey('jours-activite-1')));
     await stabiliser(tester);
 
-    final champ = find
-        .ancestor(
-          of: find.text('Jours d’activité (présence) *'),
-          matching: find.byType(TextFormField),
-        )
-        .first;
-    await tester.enterText(champ, '2');
-    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('presence-jour-2026-09-28T00:00:00.000')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('presence-jour-2026-09-30T00:00:00.000')),
+    );
     await tester.tap(find.text('Enregistrer'));
     await stabiliser(tester);
 
-    // Une ligne de présence par jour de l'activité, dans l'ordre du calendrier.
+    // La sélection non contiguë est conservée exactement.
     final presences = await db.select(db.presences).get()
       ..sort((a, b) => a.date.compareTo(b.date));
     expect(presences.length, 3, reason: '3 jours d’activité au calendrier');
@@ -114,8 +112,8 @@ void main() {
     ]);
     expect(
       presences.map((p) => p.statut).toList(),
-      ['Présent', 'Présent', 'Absent'],
-      reason: 'les 2 premiers jours saisis sont marqués présents',
+      ['Présent', 'Absent', 'Présent'],
+      reason: 'seules les deux dates cochées sont marquées présentes',
     );
 
     // L'indemnité correspondante est enregistrée avec ces jours.
@@ -133,52 +131,48 @@ void main() {
     await stabiliser(tester);
   });
 
-  testWidgets('les jours saisis ne peuvent pas dépasser l’activité', (
+  testWidgets('le calendrier ne propose que les jours de l’activité', (
     tester,
   ) async {
     await pomper(tester);
     await tester.tap(find.byKey(const ValueKey('jours-activite-1')));
     await stabiliser(tester);
 
-    final champ = find
-        .ancestor(
-          of: find.text('Jours d’activité (présence) *'),
-          matching: find.byType(TextFormField),
-        )
-        .first;
-    await tester.enterText(champ, '9');
-    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('presence-jour-2026-09-28T00:00:00.000')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('presence-jour-2026-09-30T00:00:00.000')),
+      findsOneWidget,
+    );
+    for (final jour in [debut, debut.add(const Duration(days: 1)), fin]) {
+      await tester.tap(
+        find.byKey(ValueKey('presence-jour-${jour.toIso8601String()}')),
+      );
+    }
     await tester.tap(find.text('Enregistrer'));
     await stabiliser(tester);
 
-    // Le formulaire refuse : aucune écriture, aucun débordement.
-    expect(find.textContaining('Maximum 3 jour(s)'), findsOneWidget);
-    expect(await db.select(db.presences).get(), isEmpty);
-    expect(await db.select(db.indemnitesSaisies).get(), isEmpty);
+    // Les trois dates de l'activité sont sélectionnables et enregistrées.
+    final presences = await db.select(db.presences).get();
+    expect(presences, hasLength(3));
+    expect(presences.every((p) => p.statut == 'Présent'), isTrue);
+    expect(await db.select(db.indemnitesSaisies).get(), hasLength(1));
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());
     await stabiliser(tester);
   });
 
-  testWidgets('un délai de route nul reste acceptable', (tester) async {
+  testWidgets('un seul jour coché enregistre une présence', (tester) async {
     await pomper(tester);
     await tester.tap(find.byKey(const ValueKey('jours-activite-1')));
     await stabiliser(tester);
 
-    // Aucun district n'est renseigné : le délai de route vaut 0, ce qui ne
-    // doit pas bloquer l'enregistrement d'une activité sur place.
-    expect(find.text('0'), findsWidgets);
-    await tester.enterText(
-      find
-          .ancestor(
-            of: find.text('Jours d’activité (présence) *'),
-            matching: find.byType(TextFormField),
-          )
-          .first,
-      '1',
+    await tester.tap(
+      find.byKey(const ValueKey('presence-jour-2026-09-28T00:00:00.000')),
     );
-    await tester.pump();
     await tester.tap(find.text('Enregistrer'));
     await stabiliser(tester);
 

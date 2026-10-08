@@ -16,9 +16,12 @@ class DemarrageScreen extends ConsumerStatefulWidget {
 }
 
 class _DemarrageScreenState extends ConsumerState<DemarrageScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   Timer? _minuteur;
+  Timer? _minuteurFin;
+  bool _afficherCredit = false;
   late final AnimationController _animation;
+  late final AnimationController _progression;
   late final Animation<double> _echelle;
   late final Animation<double> _opacite;
 
@@ -29,10 +32,18 @@ class _DemarrageScreenState extends ConsumerState<DemarrageScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..forward();
+    _progression = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..forward();
     _echelle = CurvedAnimation(parent: _animation, curve: Curves.easeOutBack);
     _opacite = CurvedAnimation(parent: _animation, curve: Curves.easeOut);
     if (!ref.read(demarrageTermineProvider)) {
-      _minuteur = Timer(DemarrageScreen.dureeMinimale, () {
+      _minuteur = Timer(const Duration(milliseconds: 1800), () {
+        if (!mounted) return;
+        setState(() => _afficherCredit = true);
+      });
+      _minuteurFin = Timer(DemarrageScreen.dureeMinimale, () {
         if (!mounted) return;
         ref.read(demarrageTermineProvider.notifier).state = true;
       });
@@ -42,7 +53,9 @@ class _DemarrageScreenState extends ConsumerState<DemarrageScreen>
   @override
   void dispose() {
     _minuteur?.cancel();
+    _minuteurFin?.cancel();
     _animation.dispose();
+    _progression.dispose();
     super.dispose();
   }
 
@@ -62,22 +75,11 @@ class _DemarrageScreenState extends ConsumerState<DemarrageScreen>
                   child: Padding(
                     padding: const EdgeInsets.all(32),
                     child: etat.when(
-                      loading: () => _contenuChargement(context),
+                      loading: () => _phase(context),
                       error: (error, _) => _contenuErreur(context, error),
-                      data: (_) => _contenuChargement(context),
+                      data: (_) => _phase(context),
                     ),
                   ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 22),
-              child: Text(
-                'Powered by Jonathan',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  letterSpacing: 0.4,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -86,6 +88,15 @@ class _DemarrageScreenState extends ConsumerState<DemarrageScreen>
       ),
     );
   }
+
+  Widget _phase(BuildContext context) => AnimatedSwitcher(
+    duration: const Duration(milliseconds: 320),
+    switchInCurve: Curves.easeOutCubic,
+    switchOutCurve: Curves.easeInCubic,
+    child: _afficherCredit
+        ? _contenuCredit(context)
+        : _contenuChargement(context),
+  );
 
   Widget _contenuChargement(BuildContext context) {
     final theme = Theme.of(context);
@@ -122,12 +133,39 @@ class _DemarrageScreenState extends ConsumerState<DemarrageScreen>
             ),
           ),
           const SizedBox(height: 26),
-          const SizedBox(
-            width: 44,
-            height: 44,
-            child: CircularProgressIndicator(strokeWidth: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              width: 300,
+              child: AnimatedBuilder(
+                animation: _progression,
+                builder: (context, _) => LinearProgressIndicator(
+                  value: _progression.value,
+                  minHeight: 7,
+                  backgroundColor: scheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
+                ),
+              ),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _contenuCredit(BuildContext context) {
+    final theme = Theme.of(context);
+    return FadeTransition(
+      key: const ValueKey('credit-demarrage'),
+      opacity: _opacite,
+      child: Text(
+        'Powered by JojoDev | Copilot',
+        textAlign: TextAlign.center,
+        style: theme.textTheme.titleMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          letterSpacing: 0.4,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

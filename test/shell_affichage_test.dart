@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dsfa_gestion/presentation/providers/app_providers.dart';
 import 'package:dsfa_gestion/presentation/router/app_router.dart';
 import 'package:dsfa_gestion/presentation/shell/app_shell.dart';
@@ -10,7 +12,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// quelle que soit la taille de la fenêtre.
 Widget _coquille({bool reduite = false}) {
   return ProviderScope(
-    overrides: [sidebarReduiteProvider.overrideWith((ref) => reduite)],
+    overrides: [
+      sidebarReduiteProvider.overrideWith((ref) => reduite),
+      auditCountProvider.overrideWith((ref) => Stream.value(0)),
+    ],
     child: MaterialApp(
       home: AppShell(location: '/', child: const SizedBox.expand()),
     ),
@@ -90,26 +95,27 @@ void main() {
   });
 
   testWidgets(
-      'Menu déployé sur une fenêtre très peu haute : tout reste accessible',
-      (tester) async {
-    _taille(tester, const Size(1100, 520));
-    await tester.pumpWidget(_coquille());
-    await tester.pumpAndSettle();
+    'Menu déployé sur une fenêtre très peu haute : tout reste accessible',
+    (tester) async {
+      _taille(tester, const Size(1100, 520));
+      await tester.pumpWidget(_coquille());
+      await tester.pumpAndSettle();
 
-    // Les premières rubriques sont visibles, et les suivantes restent
-    // accessibles en faisant défiler le menu (jamais d'écran vide).
-    for (final entree in entreesNavigation.take(5)) {
-      _verifierVisible(tester, entree.label);
-    }
-    await tester.drag(
-      find.descendant(of: _menu, matching: find.byType(ListView)),
-      const Offset(0, -400),
-    );
-    await tester.pumpAndSettle();
-    _verifierVisible(tester, entreesNavigation.last.label);
+      // Les premières rubriques sont visibles, et les suivantes restent
+      // accessibles en faisant défiler le menu (jamais d'écran vide).
+      for (final entree in entreesNavigation.take(5)) {
+        _verifierVisible(tester, entree.label);
+      }
+      await tester.drag(
+        find.descendant(of: _menu, matching: find.byType(ListView)),
+        const Offset(0, -400),
+      );
+      await tester.pumpAndSettle();
+      _verifierVisible(tester, entreesNavigation.last.label);
 
-    await tester.pumpWidget(const SizedBox());
-  });
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('Menu replié : toutes les rubriques restent accessibles', (
     tester,
